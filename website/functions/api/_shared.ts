@@ -10,6 +10,13 @@ export interface R2ObjectLike {
   httpMetadata?: { contentType?: string };
 }
 
+export interface R2MultipartUploadLike {
+  key: string;
+  uploadId: string;
+  uploadPart(partNumber: number, value: ReadableStream | ArrayBuffer | string): Promise<{ partNumber: number; etag: string }>;
+  complete(uploadedParts: Array<{ partNumber: number; etag: string }>): Promise<unknown>;
+}
+
 export interface R2BucketLike {
   put(
     key: string,
@@ -17,6 +24,11 @@ export interface R2BucketLike {
     options?: { httpMetadata?: { contentType?: string; contentDisposition?: string } }
   ): Promise<unknown>;
   get(key: string): Promise<R2ObjectLike | null>;
+  createMultipartUpload(
+    key: string,
+    options?: { httpMetadata?: { contentType?: string; contentDisposition?: string } }
+  ): Promise<R2MultipartUploadLike>;
+  resumeMultipartUpload(key: string, uploadId: string): R2MultipartUploadLike;
 }
 
 export interface Env {

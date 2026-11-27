@@ -135,29 +135,113 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
 
   const handleExeUpload = async (file: File) => {
     setUploadingExe(true);
-    setUploadStatus(`Uploading ${file.name} (${formatBytes(file.size)}) to Cloudflare R2...`);
+    setUploadStatus(`Starting upload for ${file.name} (${formatBytes(file.size)})...`);
     try {
-      const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: file
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
+      const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB chunks (well below Cloudflare's 100 MB request limit)
+
+      if (file.size <= CHUNK_SIZE) {
+        const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: file
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          r2Key?: string;
+          downloadUrl?: string;
+          error?: string;
+        };
+        if (!res.ok || !data.r2Key) {
+          setUploadStatus(`Upload failed (HTTP ${res.status}): ${data.error ?? res.statusText}`);
+          return;
+        }
+        setR2Key(data.r2Key);
+        setDownloadUrl(data.downloadUrl || `/api/download?file=${encodeURIComponent(data.r2Key)}`);
+        setFileSize(formatBytes(file.size));
+        setUploadStatus(`Uploaded to R2: ${file.name} (${formatBytes(file.size)})`);
+        return;
+      }
+
+      // Chunked Multipart Upload for large installers (>10 MB)
+      const startRes = await fetch(
+        `/api/admin/upload?action=start&filename=${encodeURIComponent(file.name)}`,
+        { method: 'POST' }
+      );
+      const startData = (await startRes.json().catch(() => ({}))) as {
+        r2Key?: string;
+        uploadId?: string;
+        error?: string;
+      };
+      if (!startRes.ok || !startData.r2Key || !startData.uploadId) {
+        setUploadStatus(
+          `Failed to start R2 upload (HTTP ${startRes.status}): ${startData.error ?? startRes.statusText}`
+        );
+        return;
+      }
+
+      const totalParts = Math.ceil(file.size / CHUNK_SIZE);
+      const uploadedParts: Array<{ partNumber: number; etag: string }> = [];
+
+      for (let i = 0; i < totalParts; i++) {
+        const partNumber = i + 1;
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const chunk = file.slice(start, end);
+        const pct = Math.round((i / totalParts) * 100);
+        setUploadStatus(`Uploading ${file.name} to R2... ${pct}% (part ${partNumber}/${totalParts})`);
+
+        const partRes = await fetch(
+          `/api/admin/upload?action=part&r2Key=${encodeURIComponent(startData.r2Key)}&uploadId=${encodeURIComponent(startData.uploadId)}&partNumber=${partNumber}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: chunk
+          }
+        );
+        const partData = (await partRes.json().catch(() => ({}))) as {
+          partNumber?: number;
+          etag?: string;
+          error?: string;
+        };
+        if (!partRes.ok || !partData.etag) {
+          setUploadStatus(
+            `Chunk ${partNumber}/${totalParts} failed (HTTP ${partRes.status}): ${partData.error ?? partRes.statusText}`
+          );
+          return;
+        }
+        uploadedParts.push({ partNumber, etag: partData.etag });
+      }
+
+      setUploadStatus(`Finalizing ${file.name} in R2...`);
+      const completeRes = await fetch(
+        `/api/admin/upload?action=complete&r2Key=${encodeURIComponent(startData.r2Key)}&uploadId=${encodeURIComponent(startData.uploadId)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parts: uploadedParts })
+        }
+      );
+      const completeData = (await completeRes.json().catch(() => ({}))) as {
         r2Key?: string;
         downloadUrl?: string;
         error?: string;
       };
-      if (!res.ok || !data.r2Key) {
-        setUploadStatus(data.error ?? 'Upload to R2 failed.');
+      if (!completeRes.ok || !completeData.r2Key) {
+        setUploadStatus(
+          `Finalize failed (HTTP ${completeRes.status}): ${completeData.error ?? completeRes.statusText}`
+        );
         return;
       }
-      setR2Key(data.r2Key);
-      setDownloadUrl(data.downloadUrl || `/api/download?file=${encodeURIComponent(data.r2Key)}`);
+
+      setR2Key(completeData.r2Key);
+      setDownloadUrl(
+        completeData.downloadUrl || `/api/download?file=${encodeURIComponent(completeData.r2Key)}`
+      );
       setFileSize(formatBytes(file.size));
       setUploadStatus(`Uploaded to R2: ${file.name} (${formatBytes(file.size)})`);
-    } catch {
-      setUploadStatus('Network error uploading installer to R2.');
+    } catch (err) {
+      setUploadStatus(
+        `Network error uploading installer to R2: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     } finally {
       setUploadingExe(false);
     }
