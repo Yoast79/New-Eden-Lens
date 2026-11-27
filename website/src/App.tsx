@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Activity,
+  ArrowLeft,
   BellRing,
   Building2,
   Check,
@@ -25,7 +26,7 @@ import {
   Wrench,
   X
 } from 'lucide-react';
-import { AdminPage, type ReleaseEntry, type ScreenshotEntry } from './components/AdminPage';
+import { AdminPage, DESTINATION_LABELS, type ReleaseEntry, type ScreenshotEntry } from './components/AdminPage';
 import { SpaceCanvas } from './components/SpaceCanvas';
 
 const DISCORD_URL = 'https://discord.new-eden-lens.com';
@@ -165,8 +166,12 @@ export function App() {
   const isAdminRoute =
     typeof window !== 'undefined' &&
     (window.location.pathname === '/admin' || window.location.hash === '#admin');
+  const isScreenshotsRoute =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/screenshots' || window.location.hash === '#screenshots');
 
   const [showAdmin, setShowAdmin] = useState(isAdminRoute);
+  const [showScreenshots, setShowScreenshots] = useState(isScreenshotsRoute);
   const [downloads, setDownloads] = useState<number>(0);
   const [releases, setReleases] = useState<ReleaseEntry[]>([]);
   const [screenshots, setScreenshots] = useState<ScreenshotEntry[]>([]);
@@ -245,12 +250,41 @@ export function App() {
   const effectiveSlides = heroSlides.length > 0 ? heroSlides : screenshots;
   const currentSlide =
     effectiveSlides.length > 0 ? effectiveSlides[heroSlideIdx % effectiveSlides.length] : null;
-  const galleryScreenshots = screenshots.filter((s) => s.destination !== 'hero');
+  const galleryScreenshots = [...screenshots]
+    .filter((s) => s.destination !== 'hero')
+    .sort((a, b) => {
+      const la = DESTINATION_LABELS[a.destination] ?? a.destination;
+      const lb = DESTINATION_LABELS[b.destination] ?? b.destination;
+      return la.localeCompare(lb) || a.title.localeCompare(b.title);
+    });
   const filteredGallery =
     galleryFilter === 'all'
       ? galleryScreenshots
       : galleryScreenshots.filter((s) => s.destination === galleryFilter);
-  const usedCategories = Array.from(new Set(galleryScreenshots.map((s) => s.destination)));
+  const usedCategories = Array.from(new Set(galleryScreenshots.map((s) => s.destination))).sort(
+    (a, b) =>
+      (DESTINATION_LABELS[a] ?? a).localeCompare(DESTINATION_LABELS[b] ?? b)
+  );
+
+  const openScreenshotsPage = () => {
+    window.history.pushState({}, '', '/screenshots');
+    setShowScreenshots(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openHomeSection = (hash?: string) => {
+    if (showScreenshots) {
+      window.history.pushState({}, '', hash ? `/${hash}` : '/');
+      setShowScreenshots(false);
+    }
+    if (hash) {
+      window.setTimeout(() => {
+        document.querySelector(hash)?.scrollIntoView({ behavior: 'smooth' });
+      }, 40);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   useEffect(() => {
     if (effectiveSlides.length <= 1 || heroPaused) return;
@@ -318,13 +352,85 @@ export function App() {
           </a>
 
           <nav className="hidden items-center gap-5 text-xs font-medium text-slate-300 lg:flex">
-            <a href="#features" className="hover:text-sky-300">Features</a>
-            <a href="#screenshots" className="hover:text-sky-300">Screenshots</a>
-            <a href="#download" className="hover:text-sky-300">Download</a>
-            <a href="#patch-notes" className="hover:text-sky-300">Patch Notes</a>
-            <a href="#support" className="hover:text-amber-300">1M Free SP</a>
-            <a href="#faq" className="hover:text-sky-300">FAQ</a>
-            <a href="#contact" className="hover:text-sky-300">Contact</a>
+            <a
+              href="#features"
+              onClick={(e) => {
+                if (showScreenshots) {
+                  e.preventDefault();
+                  openHomeSection('#features');
+                }
+              }}
+              className="hover:text-sky-300"
+            >
+              Features
+            </a>
+            <a
+              href="#download"
+              onClick={(e) => {
+                if (showScreenshots) {
+                  e.preventDefault();
+                  openHomeSection('#download');
+                }
+              }}
+              className="hover:text-sky-300"
+            >
+              Download
+            </a>
+            <a
+              href="#support"
+              onClick={(e) => {
+                if (showScreenshots) {
+                  e.preventDefault();
+                  openHomeSection('#support');
+                }
+              }}
+              className="hover:text-amber-300"
+            >
+              1M Free SP
+            </a>
+            <a
+              href="#patch-notes"
+              onClick={(e) => {
+                if (showScreenshots) {
+                  e.preventDefault();
+                  openHomeSection('#patch-notes');
+                }
+              }}
+              className="hover:text-sky-300"
+            >
+              Patch Notes
+            </a>
+            <a
+              href="#faq"
+              onClick={(e) => {
+                if (showScreenshots) {
+                  e.preventDefault();
+                  openHomeSection('#faq');
+                }
+              }}
+              className="hover:text-sky-300"
+            >
+              FAQ
+            </a>
+            <a
+              href="#contact"
+              onClick={(e) => {
+                if (showScreenshots) {
+                  e.preventDefault();
+                  openHomeSection('#contact');
+                }
+              }}
+              className="hover:text-sky-300"
+            >
+              Contact
+            </a>
+            <button
+              type="button"
+              onClick={openScreenshotsPage}
+              className={`hover:text-sky-300 ${showScreenshots ? 'font-semibold text-sky-300' : ''}`}
+            >
+              Screenshots
+            </button>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -349,6 +455,120 @@ export function App() {
         </div>
       </header>
 
+      {showScreenshots ? (
+        <main className="relative z-10 mx-auto max-w-6xl space-y-8 px-4 pb-16 pt-24">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => openHomeSection()}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-400 hover:text-sky-300"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to Home
+              </button>
+              <h1 className="text-3xl font-bold text-white">Screenshots &amp; Views</h1>
+              <p className="text-xs text-slate-400">
+                Sorted by module label. Click any screenshot to inspect it full-size.
+              </p>
+            </div>
+            {usedCategories.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setGalleryFilter('all')}
+                  className={`rounded-full border px-3 py-1 font-semibold ${
+                    galleryFilter === 'all'
+                      ? 'border-sky-400 bg-sky-500/20 text-sky-200'
+                      : 'border-slate-700 bg-slate-900/70 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  All ({galleryScreenshots.length})
+                </button>
+                {usedCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setGalleryFilter(cat)}
+                    className={`rounded-full border px-3 py-1 font-semibold ${
+                      galleryFilter === cat
+                        ? 'border-sky-400 bg-sky-500/20 text-sky-200'
+                        : 'border-slate-700 bg-slate-900/70 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {DESTINATION_LABELS[cat] ?? cat}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            {filteredGallery.length > 0
+              ? filteredGallery.map((shot) => (
+                  <button
+                    key={shot.id}
+                    type="button"
+                    onClick={() =>
+                      setLightbox({
+                        title: shot.title,
+                        description: shot.description,
+                        imageUrl: shot.imageUrl
+                      })
+                    }
+                    className="photon-panel group overflow-hidden text-left hover:-translate-y-1"
+                  >
+                    <div className="relative h-56 overflow-hidden bg-[#04070E]">
+                      <img
+                        src={shot.imageUrl}
+                        alt={shot.title}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <span className="hud-pill absolute left-3 top-3 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-sky-300">
+                        {DESTINATION_LABELS[shot.destination] ?? shot.destination}
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <div className="text-sm font-semibold text-white group-hover:text-sky-300">
+                        {shot.title}
+                      </div>
+                      {shot.description && (
+                        <div className="mt-1 text-xs text-slate-400">{shot.description}</div>
+                      )}
+                    </div>
+                  </button>
+                ))
+              : [...FALLBACK_PREVIEWS]
+                  .sort((a, b) => a.badge.localeCompare(b.badge))
+                  .map((shot) => (
+                    <button
+                      key={shot.id}
+                      type="button"
+                      onClick={() =>
+                        setLightbox({
+                          title: shot.title,
+                          description: shot.description,
+                          accent: shot.accent
+                        })
+                      }
+                      className="photon-panel group overflow-hidden text-left hover:-translate-y-1"
+                    >
+                      <div className={`relative h-52 bg-gradient-to-br ${shot.accent} p-4`}>
+                        <span className="hud-pill inline-block px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-sky-300">
+                          {shot.badge}
+                        </span>
+                      </div>
+                      <div className="p-4">
+                        <div className="text-sm font-semibold text-white group-hover:text-sky-300">
+                          {shot.title}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-400">{shot.description}</div>
+                      </div>
+                    </button>
+                  ))}
+          </div>
+        </main>
+      ) : (
       <main className="relative z-10 mx-auto max-w-6xl space-y-28 px-4 pb-16 pt-24">
         {/* Hero */}
         <section className="grid items-center gap-10 lg:grid-cols-12">
@@ -551,109 +771,17 @@ export function App() {
               );
             })}
           </div>
-        </section>
-
-        {/* Screenshots */}
-        <section id="screenshots" className="space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-widest text-sky-400">Interface</div>
-              <h2 className="text-3xl font-bold text-white">Screenshots &amp; Views</h2>
-            </div>
-            {usedCategories.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => setGalleryFilter('all')}
-                  className={`rounded-full border px-3 py-1 font-semibold ${
-                    galleryFilter === 'all'
-                      ? 'border-sky-400 bg-sky-500/20 text-sky-200'
-                      : 'border-slate-700 bg-slate-900/70 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  All ({galleryScreenshots.length})
-                </button>
-                {usedCategories.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setGalleryFilter(cat)}
-                    className={`rounded-full border px-3 py-1 font-semibold uppercase ${
-                      galleryFilter === cat
-                        ? 'border-sky-400 bg-sky-500/20 text-sky-200'
-                        : 'border-slate-700 bg-slate-900/70 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <span className="text-xs text-slate-400">Click any preview to expand</span>
-            )}
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            {filteredGallery.length > 0
-              ? filteredGallery.map((shot) => (
-                  <button
-                    key={shot.id}
-                    type="button"
-                    onClick={() =>
-                      setLightbox({
-                        title: shot.title,
-                        description: shot.description,
-                        imageUrl: shot.imageUrl
-                      })
-                    }
-                    className="photon-panel group overflow-hidden text-left hover:-translate-y-1"
-                  >
-                    <div className="relative h-56 overflow-hidden bg-[#04070E]">
-                      <img
-                        src={shot.imageUrl}
-                        alt={shot.title}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                      <span className="hud-pill absolute left-3 top-3 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-300">
-                        {shot.destination}
-                      </span>
-                    </div>
-                    <div className="p-4">
-                      <div className="text-sm font-semibold text-white group-hover:text-sky-300">
-                        {shot.title}
-                      </div>
-                      {shot.description && (
-                        <div className="mt-1 text-xs text-slate-400">{shot.description}</div>
-                      )}
-                    </div>
-                  </button>
-                ))
-              : FALLBACK_PREVIEWS.map((shot) => (
-                  <button
-                    key={shot.id}
-                    type="button"
-                    onClick={() =>
-                      setLightbox({
-                        title: shot.title,
-                        description: shot.description,
-                        accent: shot.accent
-                      })
-                    }
-                    className="photon-panel group overflow-hidden text-left hover:-translate-y-1"
-                  >
-                    <div className={`relative h-52 bg-gradient-to-br ${shot.accent} p-4`}>
-                      <span className="hud-pill inline-block px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-300">
-                        {shot.badge}
-                      </span>
-                    </div>
-                    <div className="p-4">
-                      <div className="text-sm font-semibold text-white group-hover:text-sky-300">
-                        {shot.title}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-400">{shot.description}</div>
-                    </div>
-                  </button>
-                ))}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <span className="text-xs text-slate-400">
+              Want to see every module in action?
+            </span>
+            <button
+              type="button"
+              onClick={openScreenshotsPage}
+              className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/50 bg-sky-500/15 px-4 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/25"
+            >
+              Open Screenshots Gallery
+            </button>
           </div>
         </section>
 
@@ -917,6 +1045,7 @@ export function App() {
           </form>
         </section>
       </main>
+      )}
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-800/80 bg-[#03050A]/90 py-8 text-xs text-slate-400">

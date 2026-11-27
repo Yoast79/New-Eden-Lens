@@ -62,7 +62,7 @@ export interface ScreenshotEntry {
   createdAt: number;
 }
 
-const DESTINATION_LABELS: Record<ScreenshotDestination, string> = {
+export const DESTINATION_LABELS: Record<ScreenshotDestination, string> = {
   hero: 'Hero Slideshow',
   gallery: 'Screenshots Gallery',
   maps: 'Navigation & Maps',
@@ -745,11 +745,13 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               onChange={(e) => setShotDest(e.target.value as ScreenshotDestination)}
               className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
             >
-              {Object.entries(DESTINATION_LABELS).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
+              {Object.entries(DESTINATION_LABELS)
+                .sort((a, b) => a[1].localeCompare(b[1]))
+                .map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
             </select>
           </label>
           <label className="space-y-1 sm:col-span-2">
