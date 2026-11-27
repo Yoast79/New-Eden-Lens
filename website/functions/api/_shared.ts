@@ -52,6 +52,24 @@ export interface ReleaseEntry {
   notes: string;
 }
 
+export type ScreenshotDestination =
+  | 'hero'
+  | 'gallery'
+  | 'maps'
+  | 'intel'
+  | 'structures'
+  | 'overlay';
+
+export interface ScreenshotEntry {
+  id: string;
+  title: string;
+  description: string;
+  destination: ScreenshotDestination;
+  imageUrl: string;
+  r2Key: string;
+  createdAt: number;
+}
+
 export const DEFAULT_RELEASES: ReleaseEntry[] = [
   {
     id: 'rel-0-2-0',
@@ -85,6 +103,18 @@ export async function getStoredReleases(env: Env): Promise<ReleaseEntry[]> {
     return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_RELEASES;
   } catch {
     return DEFAULT_RELEASES;
+  }
+}
+
+export async function getStoredScreenshots(env: Env): Promise<ScreenshotEntry[]> {
+  if (!env.LENS_KV) return [];
+  const raw = await env.LENS_KV.get('screenshots');
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as ScreenshotEntry[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 

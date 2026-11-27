@@ -2,31 +2,47 @@
 
 @layer base {
   body {
-    background-color: #070b12;
+    background-color: #04070e;
     color: #e2e8f0;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   }
 }
 
 .photon-panel {
-  background: linear-gradient(180deg, rgba(16, 26, 40, 0.88) 0%, rgba(9, 15, 24, 0.94) 100%);
+  position: relative;
+  border-radius: 1rem;
+  background: linear-gradient(155deg, rgba(16, 28, 46, 0.72) 0%, rgba(7, 12, 22, 0.86) 100%);
   border: 1px solid rgba(56, 189, 248, 0.22);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(125, 211, 252, 0.08);
-  backdrop-filter: blur(10px);
+  box-shadow:
+    0 20px 45px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(186, 230, 253, 0.12);
+  backdrop-filter: blur(16px);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .photon-panel:hover {
-  border-color: rgba(56, 189, 248, 0.45);
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow:
+    0 24px 55px rgba(0, 0, 0, 0.65),
+    0 0 28px rgba(56, 189, 248, 0.12),
+    inset 0 1px 0 rgba(186, 230, 253, 0.2);
+}
+
+.hud-pill {
+  border-radius: 9999px;
+  background: rgba(14, 24, 38, 0.75);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  backdrop-filter: blur(12px);
 }
 
 @keyframes floatSlow {
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
+  50% { transform: translateY(-7px); }
 }
 
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.25); }
-  50% { box-shadow: 0 0 28px rgba(56, 189, 248, 0.55); }
+  0%, 100% { box-shadow: 0 0 18px rgba(56, 189, 248, 0.3); }
+  50% { box-shadow: 0 0 34px rgba(56, 189, 248, 0.65); }
 }
 
 .animate-float-slow {
@@ -34,6 +50,5 @@
 }
 
 .animate-pulse-glow {
-  animation: pulseGlow 3.2s ease-in-out infinite;
+  animation: pulseGlow 3s ease-in-out infinite;
 }
-

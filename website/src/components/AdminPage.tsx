@@ -7,6 +7,7 @@ import {
   Code,
   Edit3,
   Heading2,
+  ImagePlus,
   Italic,
   Link2,
   List,
@@ -34,6 +35,33 @@ export interface ReleaseEntry {
   notes: string;
 }
 
+export type ScreenshotDestination =
+  | 'hero'
+  | 'gallery'
+  | 'maps'
+  | 'intel'
+  | 'structures'
+  | 'overlay';
+
+export interface ScreenshotEntry {
+  id: string;
+  title: string;
+  description: string;
+  destination: ScreenshotDestination;
+  imageUrl: string;
+  r2Key: string;
+  createdAt: number;
+}
+
+const DESTINATION_LABELS: Record<ScreenshotDestination, string> = {
+  hero: 'Hero Showcase Card',
+  gallery: 'Screenshots Gallery',
+  maps: 'Maps & Navigation Showcase',
+  intel: 'IntelTracker Showcase',
+  structures: 'Structures & Timers Showcase',
+  overlay: 'Popout Overlay Showcase'
+};
+
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
   const mb = bytes / (1024 * 1024);
@@ -47,6 +75,8 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [releases, setReleases] = useState<ReleaseEntry[]>([]);
+  const [screenshots, setScreenshots] = useState<ScreenshotEntry[]>([]);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [version, setVersion] = useState('v0.2.1');
   const [title, setTitle] = useState('');
@@ -65,14 +95,27 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Screenshot uploader state
+  const [shotTitle, setShotTitle] = useState('');
+  const [shotDesc, setShotDesc] = useState('');
+  const [shotDest, setShotDest] = useState<ScreenshotDestination>('gallery');
+  const [shotFile, setShotFile] = useState<File | null>(null);
+  const [shotUploading, setShotUploading] = useState(false);
+  const [shotStatus, setShotStatus] = useState<string | null>(null);
+
   const editorRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const shotInputRef = useRef<HTMLInputElement | null>(null);
 
-  const loadReleases = async () => {
-    const res = await fetch('/api/releases');
-    if (res.ok) {
-      const data = (await res.json()) as { releases: ReleaseEntry[] };
+  const loadData = async () => {
+    const [relRes, shotRes] = await Promise.all([fetch('/api/releases'), fetch('/api/screenshots')]);
+    if (relRes.ok) {
+      const data = (await relRes.json()) as { releases: ReleaseEntry[] };
       setReleases(data.releases ?? []);
+    }
+    if (shotRes.ok) {
+      const data = (await shotRes.json()) as { screenshots: ScreenshotEntry[] };
+      setScreenshots(data.screenshots ?? []);
     }
   };
 
@@ -83,7 +126,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
         if (res.ok) {
           const data = (await res.json()) as { authenticated: boolean };
           setAuthenticated(data.authenticated);
-          if (data.authenticated) await loadReleases();
+          if (data.authenticated) await loadData();
         }
       } finally {
         setChecking(false);
@@ -112,7 +155,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     }
     setPassword('');
     setAuthenticated(true);
-    await loadReleases();
+    await loadData();
   };
 
   const handleLogout = async () => {
@@ -137,8 +180,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     setUploadingExe(true);
     setUploadStatus(`Starting upload for ${file.name} (${formatBytes(file.size)})...`);
     try {
-      const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB chunks (well below Cloudflare's 100 MB request limit)
-
+      const CHUNK_SIZE = 10 * 1024 * 1024;
       if (file.size <= CHUNK_SIZE) {
         const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}`, {
           method: 'PUT',
@@ -161,7 +203,6 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      // Chunked Multipart Upload for large installers (>10 MB)
       const startRes = await fetch(
         `/api/admin/upload?action=start&filename=${encodeURIComponent(file.name)}`,
         { method: 'POST' }
@@ -247,6 +288,49 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleScreenshotUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shotFile) return;
+    setShotUploading(true);
+    setShotStatus(null);
+    try {
+      const form = new FormData();
+      form.append('file', shotFile);
+      form.append('title', shotTitle);
+      form.append('description', shotDesc);
+      form.append('destination', shotDest);
+
+      const res = await fetch('/api/admin/screenshots', { method: 'POST', body: form });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        screenshots?: ScreenshotEntry[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setShotStatus(data.error ?? 'Screenshot upload failed.');
+        return;
+      }
+      if (data.screenshots) setScreenshots(data.screenshots);
+      setShotTitle('');
+      setShotDesc('');
+      setShotFile(null);
+      if (shotInputRef.current) shotInputRef.current.value = '';
+      setShotStatus('Screenshot uploaded & published!');
+    } finally {
+      setShotUploading(false);
+    }
+  };
+
+  const handleDeleteScreenshot = async (id: string) => {
+    const res = await fetch(`/api/admin/screenshots?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { screenshots?: ScreenshotEntry[] };
+      if (data.screenshots) setScreenshots(data.screenshots);
+    }
+  };
+
   const startEditRelease = (rel: ReleaseEntry) => {
     setEditingId(rel.id);
     setVersion(rel.version);
@@ -256,9 +340,10 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     setR2Key(rel.r2Key ?? '');
     setFileSize(rel.fileSize ?? '');
     setVirusTotalUrl(rel.virusTotalUrl ?? '');
-    const html = rel.notes.trim().startsWith('<')
-      ? rel.notes
-      : `<ul>${rel.notes
+    const cleaned = rel.notes.replace(/&nbsp;/gi, ' ');
+    const html = /<[a-z][\s\S]*>/i.test(cleaned)
+      ? cleaned
+      : `<ul>${cleaned
           .split(/\r?\n/)
           .filter((l) => l.trim())
           .map((l) => `<li>${l}</li>`)
@@ -291,7 +376,8 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     e.preventDefault();
     setSaving(true);
     setStatusMsg(null);
-    const currentNotes = editorRef.current ? editorRef.current.innerHTML : notesHtml;
+    const rawHtml = editorRef.current ? editorRef.current.innerHTML : notesHtml;
+    const currentNotes = rawHtml.replace(/&nbsp;/gi, ' ');
     try {
       const res = await fetch('/api/admin/releases', {
         method: editingId ? 'PUT' : 'POST',
@@ -378,20 +464,20 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             </button>
           </div>
           <p className="text-xs text-slate-400">
-            Enter your Cloudflare admin password to publish releases and patch notes.
+            Enter your Cloudflare admin password to manage releases, screenshots, and patch notes.
           </p>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Admin Password"
-            className="w-full border border-sky-500/30 bg-[#070B12] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
+            className="w-full rounded-lg border border-sky-500/30 bg-[#070B12] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
             required
           />
           {authError && <div className="text-xs text-rose-400">{authError}</div>}
           <button
             type="submit"
-            className="w-full border border-sky-400/60 bg-sky-500/20 py-2 text-xs font-semibold uppercase tracking-wider text-sky-200 hover:bg-sky-500/30"
+            className="w-full rounded-lg border border-sky-400/60 bg-sky-500/20 py-2 text-xs font-semibold uppercase tracking-wider text-sky-200 hover:bg-sky-500/30"
           >
             Unlock Release Studio
           </button>
@@ -405,17 +491,17 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
       <div className="photon-panel flex flex-wrap items-center justify-between gap-3 px-5 py-3">
         <div>
           <h1 className="text-base font-bold uppercase tracking-wider text-sky-300">
-            Release &amp; Patch Notes Studio
+            Release &amp; Media Studio
           </h1>
           <p className="text-xs text-slate-400">
-            Upload your installer to Cloudflare R2, edit rich patch notes, and post to Discord.
+            Upload installers &amp; screenshots to R2, edit rich patch notes, and post to Discord.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1 border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:border-sky-400"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:border-sky-400"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Site
@@ -423,7 +509,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           <button
             type="button"
             onClick={() => void handleLogout()}
-            className="inline-flex items-center gap-1 border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/20"
+            className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/20"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out
@@ -431,6 +517,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
+      {/* Release Form */}
       <form onSubmit={(e) => void handlePublish(e)} className="photon-panel space-y-4 p-5 text-xs">
         <div className="flex items-center justify-between border-b border-slate-800 pb-2">
           <span className="font-semibold uppercase tracking-wider text-sky-300">
@@ -448,13 +535,12 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           )}
         </div>
 
-        {/* R2 Installer Upload Box */}
-        <div className="border border-dashed border-sky-500/40 bg-[#070B12]/80 p-4">
+        <div className="rounded-xl border border-dashed border-sky-500/40 bg-[#070B12]/80 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="font-semibold text-sky-200">Upload Installer (.exe) to Cloudflare R2</div>
               <div className="text-[11px] text-slate-400">
-                Automatically stores the installer in your <code className="text-sky-300">LENS_R2</code> bucket and fills in the direct download link &amp; file size.
+                Chunked multipart upload to <code className="text-sky-300">LENS_R2</code> with auto-filled download URL &amp; size.
               </div>
             </div>
             <div>
@@ -472,7 +558,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
                 type="button"
                 disabled={uploadingExe}
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 border border-sky-400/60 bg-sky-500/20 px-3 py-1.5 font-semibold text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/60 bg-sky-500/20 px-3 py-1.5 font-semibold text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
               >
                 <Upload className="h-3.5 w-3.5" />
                 {uploadingExe ? 'Uploading to R2...' : 'Choose Installer File'}
@@ -491,7 +577,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               onChange={(e) => setVersion(e.target.value)}
               placeholder="v0.2.1"
               required
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+              className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
             />
           </label>
           <label className="space-y-1 sm:col-span-2">
@@ -502,7 +588,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. IntelTracker Multi-Setup & Static Structure Browser"
               required
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+              className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
             />
           </label>
         </div>
@@ -517,7 +603,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               value={downloadUrl}
               onChange={(e) => setDownloadUrl(e.target.value)}
               placeholder="/api/download?file=..."
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 font-mono text-slate-100 outline-none focus:border-sky-400"
+              className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 font-mono text-slate-100 outline-none focus:border-sky-400"
             />
           </label>
           <label className="space-y-1">
@@ -527,7 +613,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               value={fileSize}
               onChange={(e) => setFileSize(e.target.value)}
               placeholder="118.4 MB"
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+              className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
             />
           </label>
           <label className="space-y-1">
@@ -536,7 +622,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+              className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
             />
           </label>
         </div>
@@ -548,7 +634,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             value={virusTotalUrl}
             onChange={(e) => setVirusTotalUrl(e.target.value)}
             placeholder="https://www.virustotal.com/..."
-            className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+            className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
           />
         </label>
 
@@ -557,73 +643,17 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           <span className="block text-[10px] uppercase tracking-wider text-slate-400">
             Patch Notes (Rich Text Editor) *
           </span>
-          <div className="flex flex-wrap items-center gap-1 border border-slate-700 bg-[#0D1520] p-1.5">
-            <button
-              type="button"
-              onClick={() => execFormat('bold')}
-              title="Bold"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <Bold className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => execFormat('italic')}
-              title="Italic"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <Italic className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => execFormat('underline')}
-              title="Underline"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <Underline className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => execFormat('strikeThrough')}
-              title="Strikethrough"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <Strikethrough className="h-3.5 w-3.5" />
-            </button>
+          <div className="flex flex-wrap items-center gap-1 rounded-t-lg border border-slate-700 bg-[#0D1520] p-1.5">
+            <button type="button" onClick={() => execFormat('bold')} title="Bold" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><Bold className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => execFormat('italic')} title="Italic" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><Italic className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => execFormat('underline')} title="Underline" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><Underline className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => execFormat('strikeThrough')} title="Strikethrough" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><Strikethrough className="h-3.5 w-3.5" /></button>
             <span className="mx-1 h-4 w-px bg-slate-700" />
-            <button
-              type="button"
-              onClick={() => execFormat('formatBlock', 'h3')}
-              title="Heading"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <Heading2 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => execFormat('insertUnorderedList')}
-              title="Bullet List"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <List className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => execFormat('insertOrderedList')}
-              title="Numbered List"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <ListOrdered className="h-3.5 w-3.5" />
-            </button>
+            <button type="button" onClick={() => execFormat('formatBlock', 'h3')} title="Heading" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><Heading2 className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => execFormat('insertUnorderedList')} title="Bullet List" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><List className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => execFormat('insertOrderedList')} title="Numbered List" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><ListOrdered className="h-3.5 w-3.5" /></button>
             <span className="mx-1 h-4 w-px bg-slate-700" />
-            <button
-              type="button"
-              onClick={handleInsertLink}
-              title="Insert Link"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <Link2 className="h-3.5 w-3.5" />
-            </button>
+            <button type="button" onClick={handleInsertLink} title="Insert Link" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><Link2 className="h-3.5 w-3.5" /></button>
             <button
               type="button"
               onClick={() => {
@@ -631,18 +661,11 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
                 if (sel) execFormat('insertHTML', `<code>${sel}</code>`);
               }}
               title="Inline Code"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+              className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"
             >
               <Code className="h-3.5 w-3.5" />
             </button>
-            <button
-              type="button"
-              onClick={() => execFormat('removeFormat')}
-              title="Clear Formatting"
-              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
-            >
-              <RemoveFormatting className="h-3.5 w-3.5" />
-            </button>
+            <button type="button" onClick={() => execFormat('removeFormat')} title="Clear Formatting" className="rounded p-1.5 text-slate-300 hover:bg-sky-500/15 hover:text-sky-300"><RemoveFormatting className="h-3.5 w-3.5" /></button>
           </div>
 
           <div
@@ -650,7 +673,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             contentEditable
             suppressContentEditableWarning
             onInput={(e) => setNotesHtml(e.currentTarget.innerHTML)}
-            className="min-h-[180px] border border-t-0 border-slate-700 bg-[#070B12] p-3 text-xs leading-relaxed text-slate-100 outline-none focus:border-sky-400 [&_code]:bg-slate-800 [&_code]:px-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-sky-300 [&_li]:ml-5 [&_ol]:list-decimal [&_ul]:list-disc [&_a]:text-sky-400 [&_a]:underline"
+            className="min-h-[180px] rounded-b-lg border border-t-0 border-slate-700 bg-[#070B12] p-3 text-xs leading-relaxed text-slate-100 outline-none focus:border-sky-400 [&_a]:text-sky-400 [&_a]:underline [&_code]:bg-slate-800 [&_code]:px-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-sky-300 [&_li]:ml-5 [&_ol]:list-decimal [&_ul]:list-disc"
           />
         </div>
 
@@ -668,7 +691,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 border border-sky-400/60 bg-sky-500/20 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-sky-400/60 bg-sky-500/20 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
           >
             <Send className="h-3.5 w-3.5" />
             {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Publish Release'}
@@ -677,18 +700,109 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
 
         {statusMsg && (
           <div
-            className={`flex items-center gap-2 border px-3 py-2 ${
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
               statusMsg.ok
                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
                 : 'border-amber-500/40 bg-amber-500/10 text-amber-300'
             }`}
           >
-            {statusMsg.ok ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-            ) : (
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-            )}
+            {statusMsg.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
             <span>{statusMsg.text}</span>
+          </div>
+        )}
+      </form>
+
+      {/* Screenshot Uploader & Manager */}
+      <form onSubmit={(e) => void handleScreenshotUpload(e)} className="photon-panel space-y-4 p-5 text-xs">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-2 font-semibold uppercase tracking-wider text-sky-300">
+          <ImagePlus className="h-4 w-4" />
+          Upload Website Screenshot
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400">Destination on Page *</span>
+            <select
+              value={shotDest}
+              onChange={(e) => setShotDest(e.target.value as ScreenshotDestination)}
+              className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+            >
+              {Object.entries(DESTINATION_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1 sm:col-span-2">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400">Screenshot Title *</span>
+            <input
+              type="text"
+              value={shotTitle}
+              onChange={(e) => setShotTitle(e.target.value)}
+              placeholder="e.g. Flat Tactical Map — Domain Region"
+              required
+              className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+            />
+          </label>
+        </div>
+
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400">Description</span>
+          <input
+            type="text"
+            value={shotDesc}
+            onChange={(e) => setShotDesc(e.target.value)}
+            placeholder="Describe what this screenshot showcases..."
+            className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+          />
+        </label>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <input
+            ref={shotInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => setShotFile(e.target.files?.[0] ?? null)}
+            required
+            className="text-xs text-slate-300 file:mr-3 file:rounded-lg file:border file:border-sky-400/50 file:bg-sky-500/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-sky-200"
+          />
+          <button
+            type="submit"
+            disabled={shotUploading || !shotFile}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/60 bg-sky-500/20 px-4 py-2 font-semibold text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            {shotUploading ? 'Uploading...' : 'Upload Screenshot'}
+          </button>
+        </div>
+
+        {shotStatus && <div className="text-emerald-300">{shotStatus}</div>}
+
+        {screenshots.length > 0 && (
+          <div className="grid gap-2 border-t border-slate-800 pt-3 sm:grid-cols-2">
+            {screenshots.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-[#070B12]/70 p-2"
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <img src={s.imageUrl} alt={s.title} className="h-10 w-16 rounded object-cover" />
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-slate-100">{s.title}</div>
+                    <div className="text-[10px] text-sky-300">{DESTINATION_LABELS[s.destination]}</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteScreenshot(s.id)}
+                  className="rounded border border-slate-700 p-1 text-slate-400 hover:text-rose-400"
+                  title="Delete screenshot"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </form>
@@ -702,7 +816,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           {releases.map((r) => (
             <div
               key={r.id}
-              className="flex items-center justify-between gap-3 border border-slate-800 bg-[#070B12]/70 px-3 py-2 text-xs"
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-[#070B12]/70 px-3 py-2 text-xs"
             >
               <div className="min-w-0 flex-1 truncate">
                 <span className="font-bold text-sky-300">{r.version}</span>
@@ -714,7 +828,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
                 <button
                   type="button"
                   onClick={() => startEditRelease(r)}
-                  className="inline-flex items-center gap-1 border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-sky-300 hover:border-sky-400"
+                  className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-sky-300 hover:border-sky-400"
                 >
                   <Edit3 className="h-3 w-3" />
                   Edit
@@ -722,7 +836,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
                 <button
                   type="button"
                   onClick={() => void handleDelete(r.id)}
-                  className="border border-slate-700 bg-slate-900 p-1 text-slate-400 hover:border-rose-500/50 hover:text-rose-400"
+                  className="rounded border border-slate-700 bg-slate-900 p-1 text-slate-400 hover:border-rose-500/50 hover:text-rose-400"
                   title="Delete release"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
