@@ -342,16 +342,17 @@ export function App() {
             </div>
 
             <h1 className="text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl">
-              Command New Eden with{' '}
+              Stop juggling 10 browser tabs and 3 separate apps.{' '}
               <span className="bg-gradient-to-r from-sky-300 via-cyan-200 to-purple-300 bg-clip-text text-transparent">
-                Next-Gen Tactical Intel.
+                Fly with everything in one place.
               </span>
             </h1>
 
             <p className="max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
-              An ultra-fast, local-first EVE Online desktop companion styled after Photon UI.
-              Navigate 2.5D &amp; Flat maps, run multi-tracker chatlog alerts, monitor corporation
-              structures, appraise loot, and fly with an always-on-top Popout Overlay.
+              Playing EVE shouldn&apos;t mean Alt-Tabbing between a map website, an intel watcher,
+              an appraisal tab, a ship fitter, and zKillboard. New Eden Lens brings all your
+              essential tools into one fast, Photon-styled desktop app—with an always-on-top
+              overlay and 100% local data.
             </p>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -384,9 +385,9 @@ export function App() {
             </div>
           </div>
 
-          {/* Hero Futuristic Showcase */}
+          {/* Hero Showcase */}
           <div className="lg:col-span-6">
-            <div className="photon-panel animate-float-slow overflow-hidden p-4">
+            <div className="photon-panel overflow-hidden p-4">
               {heroScreenshot ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-[11px]">
