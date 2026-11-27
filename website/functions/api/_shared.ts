@@ -57,7 +57,16 @@ export type ScreenshotDestination =
   | 'gallery'
   | 'maps'
   | 'intel'
+  | 'local-intel'
+  | 'killboard'
+  | 'market'
+  | 'fitting'
+  | 'fleets'
   | 'structures'
+  | 'skills'
+  | 'assets'
+  | 'pilot'
+  | 'wormhole'
   | 'overlay';
 
 export interface ScreenshotEntry {

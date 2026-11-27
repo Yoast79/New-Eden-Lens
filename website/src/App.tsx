@@ -5,6 +5,8 @@ import {
   Building2,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   Copy,
   Crosshair,
@@ -170,6 +172,9 @@ export function App() {
   const [screenshots, setScreenshots] = useState<ScreenshotEntry[]>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [copiedIsk, setCopiedIsk] = useState(false);
+  const [heroSlideIdx, setHeroSlideIdx] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
+  const [galleryFilter, setGalleryFilter] = useState<string>('all');
   const [lightbox, setLightbox] = useState<{ title: string; description: string; imageUrl?: string; accent?: string } | null>(null);
 
   const [cName, setCName] = useState('');
@@ -236,8 +241,24 @@ export function App() {
     ? `/api/download?file=${encodeURIComponent(latest.r2Key)}`
     : '/api/download';
 
-  const heroScreenshot = screenshots.find((s) => s.destination === 'hero');
+  const heroSlides = screenshots.filter((s) => s.destination === 'hero');
+  const effectiveSlides = heroSlides.length > 0 ? heroSlides : screenshots;
+  const currentSlide =
+    effectiveSlides.length > 0 ? effectiveSlides[heroSlideIdx % effectiveSlides.length] : null;
   const galleryScreenshots = screenshots.filter((s) => s.destination !== 'hero');
+  const filteredGallery =
+    galleryFilter === 'all'
+      ? galleryScreenshots
+      : galleryScreenshots.filter((s) => s.destination === galleryFilter);
+  const usedCategories = Array.from(new Set(galleryScreenshots.map((s) => s.destination)));
+
+  useEffect(() => {
+    if (effectiveSlides.length <= 1 || heroPaused) return;
+    const t = window.setInterval(() => {
+      setHeroSlideIdx((i) => (i + 1) % effectiveSlides.length);
+    }, 5000);
+    return () => window.clearInterval(t);
+  }, [effectiveSlides.length, heroPaused]);
 
   const handleCopyIskName = () => {
     void navigator.clipboard.writeText('NE Lens');
@@ -385,28 +406,88 @@ export function App() {
             </div>
           </div>
 
-          {/* Hero Showcase */}
+          {/* Hero Slideshow Showcase */}
           <div className="lg:col-span-6">
-            <div className="photon-panel overflow-hidden p-4">
-              {heroScreenshot ? (
+            <div
+              className="photon-panel overflow-hidden p-4"
+              onMouseEnter={() => setHeroPaused(true)}
+              onMouseLeave={() => setHeroPaused(false)}
+            >
+              {currentSlide ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold uppercase tracking-wider text-sky-300">
-                      {heroScreenshot.title}
+                    <span className="truncate font-semibold uppercase tracking-wider text-sky-300">
+                      {currentSlide.title}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 text-emerald-400">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-emerald-400">
                       <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                      Live Preview
+                      {effectiveSlides.length > 1
+                        ? `Slide ${(heroSlideIdx % effectiveSlides.length) + 1} / ${effectiveSlides.length}`
+                        : 'Live Preview'}
                     </span>
                   </div>
-                  <img
-                    src={heroScreenshot.imageUrl}
-                    alt={heroScreenshot.title}
-                    className="h-64 w-full rounded-xl border border-sky-500/20 object-cover"
-                  />
-                  {heroScreenshot.description && (
-                    <p className="text-xs text-slate-300">{heroScreenshot.description}</p>
-                  )}
+                  <div className="group relative">
+                    <img
+                      src={currentSlide.imageUrl}
+                      alt={currentSlide.title}
+                      onClick={() =>
+                        setLightbox({
+                          title: currentSlide.title,
+                          description: currentSlide.description,
+                          imageUrl: currentSlide.imageUrl
+                        })
+                      }
+                      className="h-64 w-full cursor-pointer rounded-xl border border-sky-500/20 object-cover transition-opacity duration-300"
+                    />
+                    {effectiveSlides.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setHeroSlideIdx(
+                              (i) => (i - 1 + effectiveSlides.length) % effectiveSlides.length
+                            )
+                          }
+                          aria-label="Previous slide"
+                          className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-sky-400/40 bg-[#04070E]/80 p-1.5 text-slate-200 opacity-0 transition-opacity hover:text-sky-300 group-hover:opacity-100"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setHeroSlideIdx((i) => (i + 1) % effectiveSlides.length)
+                          }
+                          aria-label="Next slide"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-sky-400/40 bg-[#04070E]/80 p-1.5 text-slate-200 opacity-0 transition-opacity hover:text-sky-300 group-hover:opacity-100"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-xs text-slate-300">
+                      {currentSlide.description || 'Click image to enlarge'}
+                    </p>
+                    {effectiveSlides.length > 1 && (
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {effectiveSlides.map((s, idx) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setHeroSlideIdx(idx)}
+                            aria-label={`Go to slide ${idx + 1}`}
+                            className={`h-1.5 rounded-full transition-all ${
+                              idx === heroSlideIdx % effectiveSlides.length
+                                ? 'w-5 bg-sky-400'
+                                : 'w-1.5 bg-slate-600 hover:bg-slate-400'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -474,17 +555,47 @@ export function App() {
 
         {/* Screenshots */}
         <section id="screenshots" className="space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-2">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-widest text-sky-400">Interface</div>
               <h2 className="text-3xl font-bold text-white">Screenshots &amp; Views</h2>
             </div>
-            <span className="text-xs text-slate-400">Click any preview to expand</span>
+            {usedCategories.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setGalleryFilter('all')}
+                  className={`rounded-full border px-3 py-1 font-semibold ${
+                    galleryFilter === 'all'
+                      ? 'border-sky-400 bg-sky-500/20 text-sky-200'
+                      : 'border-slate-700 bg-slate-900/70 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  All ({galleryScreenshots.length})
+                </button>
+                {usedCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setGalleryFilter(cat)}
+                    className={`rounded-full border px-3 py-1 font-semibold uppercase ${
+                      galleryFilter === cat
+                        ? 'border-sky-400 bg-sky-500/20 text-sky-200'
+                        : 'border-slate-700 bg-slate-900/70 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400">Click any preview to expand</span>
+            )}
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            {galleryScreenshots.length > 0
-              ? galleryScreenshots.map((shot) => (
+            {filteredGallery.length > 0
+              ? filteredGallery.map((shot) => (
                   <button
                     key={shot.id}
                     type="button"

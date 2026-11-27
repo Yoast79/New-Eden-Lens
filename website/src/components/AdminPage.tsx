@@ -40,7 +40,16 @@ export type ScreenshotDestination =
   | 'gallery'
   | 'maps'
   | 'intel'
+  | 'local-intel'
+  | 'killboard'
+  | 'market'
+  | 'fitting'
+  | 'fleets'
   | 'structures'
+  | 'skills'
+  | 'assets'
+  | 'pilot'
+  | 'wormhole'
   | 'overlay';
 
 export interface ScreenshotEntry {
@@ -54,12 +63,21 @@ export interface ScreenshotEntry {
 }
 
 const DESTINATION_LABELS: Record<ScreenshotDestination, string> = {
-  hero: 'Hero Showcase Card',
+  hero: 'Hero Slideshow',
   gallery: 'Screenshots Gallery',
-  maps: 'Maps & Navigation Showcase',
-  intel: 'IntelTracker Showcase',
-  structures: 'Structures & Timers Showcase',
-  overlay: 'Popout Overlay Showcase'
+  maps: 'Navigation & Maps',
+  intel: 'Live Chatlog Intel',
+  'local-intel': 'Local & D-Scan Intel',
+  killboard: 'Killboard & Lookup',
+  market: 'Market, Appraisal & LP',
+  fitting: 'Ship Fitter',
+  fleets: 'Fleet Planner',
+  structures: 'Structures & Timers',
+  skills: 'Skill Planner & Monitor',
+  assets: 'Assets Browser',
+  pilot: 'Pilot Analytics',
+  wormhole: 'Wormhole Mapper',
+  overlay: 'In-Game Popout Overlay'
 };
 
 function formatBytes(bytes: number): string {
