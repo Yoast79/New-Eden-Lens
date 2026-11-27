@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+[data-theme='photon'] {
+  --eve-bg: #0b0e14;
+  --eve-panel: #131822;
+  --eve-panel-elevated: #1a2130;
+  --eve-border: #232d3f;
+  --eve-border-strong: #33435c;
+  --eve-accent: #00f0ff;
+  --eve-accent-muted: rgba(0, 240, 255, 0.14);
+  --eve-warning: #f59e0b;
+  --eve-danger: #ef4444;
+  --eve-success: #10b981;
+  --eve-text: #e2e8f0;
+  --eve-text-muted: #8b9bb4;
+}
+
+[data-theme='caldari'] {
+  --eve-bg: #080d14;
+  --eve-panel: #101925;
+  --eve-panel-elevated: #162334;
+  --eve-border: #22354c;
+  --eve-border-strong: #36567a;
+  --eve-accent: #4cc3ff;
+  --eve-accent-muted: rgba(76, 195, 255, 0.16);
+  --eve-warning: #f59e0b;
+  --eve-danger: #f87171;
+  --eve-success: #34d399;
+  --eve-text: #e6f0fa;
+  --eve-text-muted: #84a0bd;
+}
+
+[data-theme='amarr'] {
+  --eve-bg: #0e0b07;
+  --eve-panel: #19140d;
+  --eve-panel-elevated: #241c12;
+  --eve-border: #3c2f1c;
+  --eve-border-strong: #614b2a;
+  --eve-accent: #e5a93c;
+  --eve-accent-muted: rgba(229, 169, 60, 0.16);
+  --eve-warning: #fbbf24;
+  --eve-danger: #ef4444;
+  --eve-success: #4ade80;
+  --eve-text: #f3ead8;
+  --eve-text-muted: #a69577;
+}
+
+[data-theme='gallente'] {
+  --eve-bg: #07110f;
+  --eve-panel: #0e1d19;
+  --eve-panel-elevated: #142924;
+  --eve-border: #1e3d35;
+  --eve-border-strong: #2e5d51;
+  --eve-accent: #2ee59d;
+  --eve-accent-muted: rgba(46, 229, 157, 0.15);
+  --eve-warning: #f59e0b;
+  --eve-danger: #f87171;
+  --eve-success: #34d399;
+  --eve-text: #e2f5ef;
+  --eve-text-muted: #7ea89c;
+}
+
+[data-theme='minmatar'] {
+  --eve-bg: #120b09;
+  --eve-panel: #1d1210;
+  --eve-panel-elevated: #291916;
+  --eve-border: #42251f;
+  --eve-border-strong: #693b31;
+  --eve-accent: #e8683c;
+  --eve-accent-muted: rgba(232, 104, 60, 0.17);
+  --eve-warning: #f59e0b;
+  --eve-danger: #ef4444;
+  --eve-success: #4ade80;
+  --eve-text: #f5e6e2;
+  --eve-text-muted: #ae8a82;
+}
+
+[data-theme='triglavian'] {
+  --eve-bg: #0c0709;
+  --eve-panel: #170d11;
+  --eve-panel-elevated: #221218;
+  --eve-border: #421925;
+  --eve-border-strong: #6e263b;
+  --eve-accent: #ff2a4b;
+  --eve-accent-muted: rgba(255, 42, 75, 0.17);
+  --eve-warning: #f59e0b;
+  --eve-danger: #ff4764;
+  --eve-success: #2dd4bf;
+  --eve-text: #f6e4e8;
+  --eve-text-muted: #a67d87;
+}
+
+[data-theme='soe'] {
+  --eve-bg: #0a1014;
+  --eve-panel: #131c23;
+  --eve-panel-elevated: #1b2833;
+  --eve-border: #2a3c4a;
+  --eve-border-strong: #415e73;
+  --eve-accent: #7ae0ff;
+  --eve-accent-muted: rgba(122, 224, 255, 0.16);
+  --eve-warning: #fbbf24;
+  --eve-danger: #f87171;
+  --eve-success: #34d399;
+  --eve-text: #edf5fa;
+  --eve-text-muted: #8ea7b8;
+}
+
+@layer utilities {
+  .photon-panel {
+    background-color: color-mix(in srgb, var(--eve-panel) 92%, transparent);
+    border: 1px solid var(--eve-border);
+    backdrop-filter: blur(10px);
+  }
+
+  .photon-header {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--eve-accent) 12%, var(--eve-panel-elevated)),
+      var(--eve-panel)
+    );
+    border-bottom: 1px solid var(--eve-border);
+  }
+
+  .num-mono {
+    font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--eve-border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--eve-border-strong);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--eve-accent);
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--eve-accent) 45%, transparent);
+  color: #ffffff;
+}
+
+input::selection,
+textarea::selection {
+  background-color: var(--eve-accent);
+  color: #0b0e14;
+}
+
