@@ -71,3 +71,4 @@ export const onRequestDelete = async (context: { request: Request; env: Env }): 
   await context.env.LENS_KV.put('screenshots', JSON.stringify(next));
   return jsonResponse({ ok: true, screenshots: next });
 };
+

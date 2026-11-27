@@ -16,7 +16,6 @@ import {
   Map as MapIcon,
   MessageSquare,
   Radar,
-  Rocket,
   Send,
   ShieldCheck,
   Sparkles,
@@ -279,16 +278,18 @@ export function App() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#04070E] text-slate-100">
+    <div className="relative min-h-screen overflow-x-clip bg-[#04070E] text-slate-100">
       <SpaceCanvas />
 
-      {/* Floating Futuristic Navigation */}
-      <header className="sticky top-3 z-40 mx-auto max-w-6xl px-4">
-        <div className="hud-pill flex items-center justify-between px-4 py-2.5 shadow-2xl">
+      {/* Fixed Floating Navigation (always stays in place on scroll) */}
+      <header className="fixed left-0 right-0 top-3 z-40 mx-auto max-w-6xl px-4">
+        <div className="hud-pill flex items-center justify-between px-4 py-2 shadow-2xl">
           <a href="#" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-sky-400/50 bg-sky-500/20">
-              <Rocket className="h-4 w-4 text-sky-300" />
-            </div>
+            <img
+              src="/icon.png"
+              alt="New Eden Lens Logo"
+              className="h-8 w-8 rounded-full border border-sky-400/50 bg-[#04070E] object-contain p-0.5"
+            />
             <div>
               <div className="text-xs font-bold uppercase tracking-widest text-white">New Eden Lens</div>
               <div className="text-[9px] uppercase tracking-widest text-sky-400">Photon Tactical Suite</div>
@@ -327,7 +328,7 @@ export function App() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl space-y-28 px-4 py-16">
+      <main className="relative z-10 mx-auto max-w-6xl space-y-28 px-4 pb-16 pt-24">
         {/* Hero */}
         <section className="grid items-center gap-10 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-6">
@@ -808,10 +809,17 @@ export function App() {
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-800/80 bg-[#03050A]/90 py-8 text-xs text-slate-400">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center sm:flex-row sm:text-left">
-          <div className="space-y-1">
-            <div className="font-semibold text-slate-200">New Eden Lens</div>
-            <div className="text-[11px] text-slate-500">
-              EVE Online and the EVE logo are the registered trademarks of Fenris Creations. All rights reserved.
+          <div className="flex items-center gap-3">
+            <img
+              src="/icon.png"
+              alt="New Eden Lens Logo"
+              className="h-9 w-9 shrink-0 rounded-full border border-sky-500/30 bg-[#04070E] object-contain p-0.5"
+            />
+            <div className="space-y-1">
+              <div className="font-semibold text-slate-200">New Eden Lens</div>
+              <div className="text-[11px] text-slate-500">
+                Disclaimer: All in-game assets, ships, icons, and trademarks used in this application belong to Fenris Creations. EVE Online and the EVE logo are the registered trademarks of Fenris Creations.
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-4">

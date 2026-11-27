@@ -1,22 +1,87 @@
 import { useEffect, useRef } from 'react';
 
-interface GalaxyStar {
-  radius: number;
-  angle: number;
-  armOffset: number;
-  speed: number;
-  size: number;
-  alpha: number;
-  color: string;
+// Smooth 2D value noise + FBM for realistic wispy cosmic nebula clouds
+function hash2d(x: number, y: number): number {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+  return n - Math.floor(n);
 }
 
-interface BgStar {
+function smoothNoise(x: number, y: number): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = hash2d(ix, iy);
+  const b = hash2d(ix + 1, iy);
+  const c = hash2d(ix, iy + 1);
+  const d = hash2d(ix + 1, iy + 1);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+
+function fbm(x: number, y: number): number {
+  let val = 0;
+  let amp = 0.5;
+  let freq = 1;
+  for (let i = 0; i < 4; i++) {
+    val += amp * smoothNoise(x * freq, y * freq);
+    freq *= 2.05;
+    amp *= 0.5;
+  }
+  return val;
+}
+
+function buildNebulaCanvas(width: number, height: number): HTMLCanvasElement {
+  const off = document.createElement('canvas');
+  // Render at 1/4 resolution for smooth organic clouds & fast startup
+  const nw = Math.max(240, Math.floor(width / 4));
+  const nh = Math.max(160, Math.floor(height / 4));
+  off.width = nw;
+  off.height = nh;
+  const ctx = off.getContext('2d');
+  if (!ctx) return off;
+
+  const img = ctx.createImageData(nw, nh);
+  const data = img.data;
+
+  for (let y = 0; y < nh; y++) {
+    for (let x = 0; x < nw; x++) {
+      const nx = (x / nw) * 3.2;
+      const ny = (y / nh) * 2.4;
+
+      // Domain-warped FBM for realistic EVE-like gas filaments
+      const warpX = fbm(nx + 1.7, ny + 9.2);
+      const warpY = fbm(nx + 8.3, ny + 2.8);
+      const density = fbm(nx + warpX * 1.4, ny + warpY * 1.4);
+      const ridge = Math.max(0, 1 - Math.abs(density - 0.52) * 3.6);
+      const cloud = Math.pow(density, 2.1) * 0.85 + Math.pow(ridge, 2.4) * 0.35;
+
+      // Subtle cold Caldari/space palette: deep void -> slate-blue -> cyan filament
+      const r = Math.min(255, Math.floor(4 + cloud * 26));
+      const g = Math.min(255, Math.floor(7 + cloud * 72));
+      const b = Math.min(255, Math.floor(14 + cloud * 118));
+      const a = Math.min(255, Math.floor(cloud * 195));
+
+      const idx = (y * nw + x) * 4;
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
+      data[idx + 3] = a;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return off;
+}
+
+interface PinpointStar {
   x: number;
   y: number;
   r: number;
-  twinklePhase: number;
-  twinkleSpeed: number;
-  color: string;
+  baseAlpha: number;
+  phase: number;
+  speed: number;
+  tint: string;
 }
 
 export function SpaceCanvas() {
@@ -31,103 +96,60 @@ export function SpaceCanvas() {
     let rafId = 0;
     let w = (canvas.width = window.innerWidth);
     let h = (canvas.height = window.innerHeight);
+    let nebula = buildNebulaCanvas(w, h);
 
-    const arms = 4;
-    const galaxyColors = ['#E0F2FE', '#7DD3FC', '#38BDF8', '#C084FC', '#FDE68A', '#FDBA74'];
-    const galaxyStars: GalaxyStar[] = Array.from({ length: 820 }, (_, i) => {
-      const arm = i % arms;
-      const dist = Math.pow(Math.random(), 0.72);
-      const radius = 16 + dist * 460;
-      const swirl = dist * 4.4;
-      const scatter = (Math.random() - 0.5) * (0.35 + dist * 0.65);
-      return {
-        radius,
-        angle: (arm / arms) * Math.PI * 2 + swirl + scatter,
-        armOffset: (Math.random() - 0.5) * 18,
-        speed: 0.00022 + (1 - dist) * 0.00045,
-        size: dist < 0.2 ? 1.1 + Math.random() * 1.4 : 0.6 + Math.random() * 1.3,
-        alpha: 0.25 + Math.random() * 0.7,
-        color:
-          dist < 0.16
-            ? '#FDE68A'
-            : galaxyColors[Math.floor(Math.random() * galaxyColors.length)]
-      };
-    });
+    const makeStars = (cw: number, ch: number): PinpointStar[] =>
+      Array.from({ length: 260 }, () => {
+        const bright = Math.random() > 0.9;
+        return {
+          x: Math.random() * cw,
+          y: Math.random() * ch,
+          r: bright ? 0.9 + Math.random() * 0.45 : 0.35 + Math.random() * 0.5,
+          baseAlpha: bright ? 0.65 + Math.random() * 0.3 : 0.18 + Math.random() * 0.4,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.008 + Math.random() * 0.015,
+          tint: Math.random() > 0.78 ? '#BAE6FD' : '#F8FAFC'
+        };
+      });
 
-    const bgStars: BgStar[] = Array.from({ length: 180 }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      r: 0.4 + Math.random() * 1.1,
-      twinklePhase: Math.random() * Math.PI * 2,
-      twinkleSpeed: 0.015 + Math.random() * 0.025,
-      color: Math.random() > 0.8 ? '#7DD3FC' : '#E2E8F0'
-    }));
+    let stars = makeStars(w, h);
 
     const onResize = () => {
       w = canvas.width = window.innerWidth;
       h = canvas.height = window.innerHeight;
+      nebula = buildNebulaCanvas(w, h);
+      stars = makeStars(w, h);
     };
     window.addEventListener('resize', onResize);
 
     const draw = () => {
-      ctx.clearRect(0, 0, w, h);
-      const t = Date.now() * 0.00015;
+      ctx.fillStyle = '#04070E';
+      ctx.fillRect(0, 0, w, h);
 
-      // Deep-space multi-layered drifting nebulae
-      const nebulae = [
-        { x: w * (0.72 + Math.sin(t) * 0.03), y: h * (0.32 + Math.cos(t * 0.7) * 0.03), r: Math.max(w, h) * 0.52, c1: 'rgba(56, 189, 248, 0.14)', c2: 'rgba(14, 165, 233, 0)' },
-        { x: w * (0.24 + Math.cos(t * 0.8) * 0.04), y: h * (0.72 + Math.sin(t * 0.6) * 0.03), r: Math.max(w, h) * 0.46, c1: 'rgba(168, 85, 247, 0.11)', c2: 'rgba(168, 85, 247, 0)' },
-        { x: w * 0.68, y: h * 0.34, r: Math.max(w, h) * 0.28, c1: 'rgba(245, 158, 11, 0.09)', c2: 'rgba(245, 158, 11, 0)' }
-      ];
-      for (const n of nebulae) {
-        const g = ctx.createRadialGradient(n.x, n.y, 10, n.x, n.y, n.r);
-        g.addColorStop(0, n.c1);
-        g.addColorStop(1, n.c2);
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h);
-      }
+      // Slow, subtle atmospheric nebula drift
+      const t = Date.now() * 0.00008;
+      const dx = Math.sin(t) * 18;
+      const dy = Math.cos(t * 0.7) * 12;
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(nebula, dx - 24, dy - 18, w + 48, h + 36);
+      ctx.restore();
 
-      // Twinkling deep-field stars
-      for (const b of bgStars) {
-        b.twinklePhase += b.twinkleSpeed;
-        ctx.globalAlpha = 0.25 + (Math.sin(b.twinklePhase) + 1) * 0.35;
-        ctx.fillStyle = b.color;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // Subtle distant sun/starlight glow in upper right
+      const sun = ctx.createRadialGradient(w * 0.82, h * 0.18, 2, w * 0.82, h * 0.18, Math.max(w, h) * 0.32);
+      sun.addColorStop(0, 'rgba(186, 230, 253, 0.11)');
+      sun.addColorStop(0.35, 'rgba(56, 189, 248, 0.04)');
+      sun.addColorStop(1, 'rgba(4, 7, 14, 0)');
+      ctx.fillStyle = sun;
+      ctx.fillRect(0, 0, w, h);
 
-      // Spinning Spiral Galaxy (tilted elliptical projection)
-      const cx = w * 0.7;
-      const cy = h * 0.34;
-      const tilt = 0.48; // perspective foreshortening
-      const rotTilt = -0.28; // diagonal tilt
-      const cosR = Math.cos(rotTilt);
-      const sinR = Math.sin(rotTilt);
-
-      // Galactic core glow
-      const core = ctx.createRadialGradient(cx, cy, 4, cx, cy, 135);
-      core.addColorStop(0, 'rgba(254, 243, 199, 0.45)');
-      core.addColorStop(0.28, 'rgba(56, 189, 248, 0.20)');
-      core.addColorStop(1, 'rgba(7, 11, 18, 0)');
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = core;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 135, 0, Math.PI * 2);
-      ctx.fill();
-
-      for (const s of galaxyStars) {
-        s.angle += s.speed;
-        const lx = Math.cos(s.angle) * s.radius;
-        const ly = Math.sin(s.angle) * s.radius * tilt + s.armOffset * 0.35;
-        const px = cx + lx * cosR - ly * sinR;
-        const py = cy + lx * sinR + ly * cosR;
-
-        ctx.globalAlpha = s.alpha;
-        ctx.fillStyle = s.color;
-        ctx.beginPath();
-        ctx.arc(px, py, s.size, 0, Math.PI * 2);
-        ctx.fill();
+      // Crisp pinpoint starfield
+      for (const s of stars) {
+        s.phase += s.speed;
+        const twinkle = 0.75 + 0.25 * Math.sin(s.phase);
+        ctx.globalAlpha = s.baseAlpha * twinkle;
+        ctx.fillStyle = s.tint;
+        ctx.fillRect(s.x, s.y, s.r, s.r);
       }
 
       ctx.globalAlpha = 1;
