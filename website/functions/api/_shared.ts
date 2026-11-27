@@ -3,8 +3,25 @@ export interface KVNamespaceLike {
   put(key: string, value: string): Promise<void>;
 }
 
+export interface R2ObjectLike {
+  body: ReadableStream | null;
+  size: number;
+  httpEtag?: string;
+  httpMetadata?: { contentType?: string };
+}
+
+export interface R2BucketLike {
+  put(
+    key: string,
+    value: ReadableStream | ArrayBuffer | string | null,
+    options?: { httpMetadata?: { contentType?: string; contentDisposition?: string } }
+  ): Promise<unknown>;
+  get(key: string): Promise<R2ObjectLike | null>;
+}
+
 export interface Env {
   LENS_KV?: KVNamespaceLike;
+  LENS_R2?: R2BucketLike;
   DISCORD_CONTACT_WEBHOOK_URL?: string;
   DISCORD_UPDATES_WEBHOOK_URL?: string;
   ADMIN_PASSWORD?: string;
@@ -17,7 +34,7 @@ export interface ReleaseEntry {
   title: string;
   date: string;
   downloadUrl: string;
-  sha256?: string;
+  r2Key?: string;
   fileSize?: string;
   virusTotalUrl?: string;
   notes: string;
@@ -29,15 +46,10 @@ export const DEFAULT_RELEASES: ReleaseEntry[] = [
     version: 'v0.2.0',
     title: 'Tactical Maps, Multi-Tracker Intel & Structures Hub',
     date: '2026-11-27',
-    downloadUrl: 'https://github.com/Yoast79/New-Eden-Lens/releases/latest',
+    downloadUrl: '/api/download',
     fileSize: '~118 MB',
-    notes: [
-      '+ Navigation & Maps hub with 2.5D Map, Flat Map, Route Planner, Thera/Turnur, and static Structure Browser (5,211 NPC stations)',
-      '+ Live Chatlog Intel (IntelTracker) with multi-tracker split screen, custom WebAudio sounds, and Popout Overlay badges',
-      '+ Structures module with My Structures fuel monitor, reinforce/attack warnings, and Custom Timers',
-      '+ Killboard live stream & lookup, Market Appraisal, LP Conversion, Ship Fitter, and Fleet Planner',
-      '* Full EVE SSO (PKCE) with local-only SQLite storage'
-    ].join('\n')
+    notes:
+      '<ul><li><strong>Navigation &amp; Maps:</strong> 2.5D Map, Flat Map, Route Planner, Thera/Turnur, and static Structure Browser (5,211 NPC stations).</li><li><strong>Live Chatlog Intel:</strong> Multi-tracker split screen, custom WebAudio alerts, and Popout Overlay badges.</li><li><strong>Structures:</strong> My Structures fuel monitor, reinforce/attack warnings, and Custom Timers.</li></ul>'
   }
 ];
 
@@ -115,3 +127,24 @@ export async function verifyAdminRequest(request: Request, env: Env): Promise<bo
   return timingSafeEqualStr(sig, expected);
 }
 
+export function htmlToDiscordMarkdown(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<(b|strong)[^>]*>(.*?)<\/\1>/gis, '**$2**')
+    .replace(/<(i|em)[^>]*>(.*?)<\/\1>/gis, '*$2*')
+    .replace(/<u[^>]*>(.*?)<\/u>/gis, '__$1__')
+    .replace(/<(s|strike|del)[^>]*>(.*?)<\/\1>/gis, '~~$2~~')
+    .replace(/<code[^>]*>(.*?)<\/code>/gis, '`$1`')
+    .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gis, '[$2]($1)')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

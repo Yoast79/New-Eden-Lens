@@ -3,9 +3,7 @@ import {
   Activity,
   BellRing,
   Building2,
-  Check,
   ChevronDown,
-  Copy,
   Crosshair,
   Download,
   ExternalLink,
@@ -134,7 +132,6 @@ export function App() {
   const [downloads, setDownloads] = useState<number>(0);
   const [releases, setReleases] = useState<ReleaseEntry[]>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [copiedHash, setCopiedHash] = useState(false);
   const [lightbox, setLightbox] = useState<(typeof SCREENSHOT_PREVIEWS)[number] | null>(null);
 
   // Contact form state
@@ -188,15 +185,12 @@ export function App() {
     downloadUrl: '/api/download',
     fileSize: '~118 MB',
     notes:
-      '+ Navigation & Maps hub with 2.5D Map, Flat Map, Route Planner, Thera/Turnur, and static Structure Browser\n+ Live Chatlog Intel (IntelTracker) with multi-tracker split screen & Popout Overlay\n+ Structures module with fuel monitor & attack warnings'
+      '<ul><li><strong>Navigation &amp; Maps:</strong> 2.5D Map, Flat Map, Route Planner, Thera/Turnur, and static Structure Browser</li><li><strong>Live Chatlog Intel:</strong> Multi-tracker split screen &amp; Popout Overlay</li><li><strong>Structures:</strong> Fuel monitor &amp; attack warnings</li></ul>'
   };
 
-  const handleCopySha = () => {
-    if (!latest.sha256) return;
-    void navigator.clipboard.writeText(latest.sha256);
-    setCopiedHash(true);
-    setTimeout(() => setCopiedHash(false), 2000);
-  };
+  const directDownloadHref = latest.r2Key
+    ? `/api/download?file=${encodeURIComponent(latest.r2Key)}`
+    : '/api/download';
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,7 +304,8 @@ export function App() {
 
             <div className="flex flex-wrap items-center gap-3">
               <a
-                href="/api/download"
+                href={directDownloadHref}
+                download
                 className="animate-pulse-glow inline-flex items-center gap-2 border border-sky-400 bg-sky-500/25 px-6 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-sky-500/35"
               >
                 <Download className="h-4 w-4 text-sky-300" />
@@ -454,7 +449,8 @@ export function App() {
 
             <div className="flex flex-wrap items-center gap-3">
               <a
-                href="/api/download"
+                href={directDownloadHref}
+                download
                 className="inline-flex items-center gap-2 border border-sky-400 bg-sky-500/25 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-sky-500/35"
               >
                 <Download className="h-4 w-4 text-sky-300" />
@@ -481,20 +477,6 @@ export function App() {
                 </a>
               )}
             </div>
-
-            {latest.sha256 && (
-              <div className="flex items-center justify-between gap-2 border border-slate-800 bg-[#070B12] px-3 py-2 text-[11px]">
-                <span className="truncate font-mono text-slate-400">SHA-256: {latest.sha256}</span>
-                <button
-                  type="button"
-                  onClick={handleCopySha}
-                  className="inline-flex shrink-0 items-center gap-1 text-sky-300 hover:text-sky-200"
-                >
-                  {copiedHash ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copiedHash ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="space-y-3 border-t border-slate-800 pt-4 text-xs lg:col-span-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
@@ -529,14 +511,21 @@ export function App() {
                   </div>
                   <span className="font-mono text-xs text-slate-400">{rel.date}</span>
                 </div>
-                <ul className="space-y-1 text-xs leading-relaxed text-slate-300">
-                  {rel.notes
-                    .split(/\r?\n/)
-                    .filter((l) => l.trim())
-                    .map((line, i) => (
-                      <li key={i}>{line}</li>
-                    ))}
-                </ul>
+                {rel.notes.trim().startsWith('<') ? (
+                  <div
+                    className="space-y-1 text-xs leading-relaxed text-slate-300 [&_a]:text-sky-400 [&_a]:underline [&_code]:bg-slate-800 [&_code]:px-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-sky-300 [&_li]:ml-5 [&_ol]:list-decimal [&_ul]:list-disc"
+                    dangerouslySetInnerHTML={{ __html: rel.notes }}
+                  />
+                ) : (
+                  <ul className="space-y-1 text-xs leading-relaxed text-slate-300">
+                    {rel.notes
+                      .split(/\r?\n/)
+                      .filter((l) => l.trim())
+                      .map((line, i) => (
+                        <li key={i}>{line}</li>
+                      ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>

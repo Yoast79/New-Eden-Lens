@@ -1,12 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
+  Bold,
   CheckCircle2,
+  Code,
+  Edit3,
+  Heading2,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
   Lock,
   LogOut,
-  Plus,
+  RemoveFormatting,
   Send,
-  Trash2
+  Strikethrough,
+  Trash2,
+  Underline,
+  Upload,
+  X
 } from 'lucide-react';
 
 export interface ReleaseEntry {
@@ -15,10 +28,16 @@ export interface ReleaseEntry {
   title: string;
   date: string;
   downloadUrl: string;
-  sha256?: string;
+  r2Key?: string;
   fileSize?: string;
   virusTotalUrl?: string;
   notes: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(1)} MB`;
 }
 
 export function AdminPage({ onBack }: { onBack: () => void }) {
@@ -28,17 +47,26 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [releases, setReleases] = useState<ReleaseEntry[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [version, setVersion] = useState('v0.2.1');
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [downloadUrl, setDownloadUrl] = useState('');
+  const [downloadUrl, setDownloadUrl] = useState('/api/download');
+  const [r2Key, setR2Key] = useState('');
   const [fileSize, setFileSize] = useState('');
-  const [sha256, setSha256] = useState('');
   const [virusTotalUrl, setVirusTotalUrl] = useState('');
-  const [notes, setNotes] = useState('+ Added \n* Improved \n! Fixed ');
+  const [notesHtml, setNotesHtml] = useState(
+    '<ul><li><strong>Added:</strong> </li><li><strong>Improved:</strong> </li><li><strong>Fixed:</strong> </li></ul>'
+  );
   const [postToDiscord, setPostToDiscord] = useState(true);
+
+  const [uploadingExe, setUploadingExe] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadReleases = async () => {
     const res = await fetch('/api/releases');
@@ -63,6 +91,12 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     })();
   }, []);
 
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== notesHtml) {
+      editorRef.current.innerHTML = notesHtml;
+    }
+  }, [editingId, authenticated]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -86,27 +120,108 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     setAuthenticated(false);
   };
 
-  const insertPrefix = (prefix: string) => {
-    setNotes((prev) => `${prev}${prev.endsWith('\n') || prev === '' ? '' : '\n'}${prefix} `);
+  const execFormat = (cmd: string, value?: string) => {
+    editorRef.current?.focus();
+    document.execCommand(cmd, false, value);
+    if (editorRef.current) setNotesHtml(editorRef.current.innerHTML);
+  };
+
+  const handleInsertLink = () => {
+    const url = window.prompt('Enter URL (https://...):');
+    if (url && url.trim()) {
+      execFormat('createLink', url.trim());
+    }
+  };
+
+  const handleExeUpload = async (file: File) => {
+    setUploadingExe(true);
+    setUploadStatus(`Uploading ${file.name} (${formatBytes(file.size)}) to Cloudflare R2...`);
+    try {
+      const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        r2Key?: string;
+        downloadUrl?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.r2Key) {
+        setUploadStatus(data.error ?? 'Upload to R2 failed.');
+        return;
+      }
+      setR2Key(data.r2Key);
+      setDownloadUrl(data.downloadUrl || `/api/download?file=${encodeURIComponent(data.r2Key)}`);
+      setFileSize(formatBytes(file.size));
+      setUploadStatus(`Uploaded to R2: ${file.name} (${formatBytes(file.size)})`);
+    } catch {
+      setUploadStatus('Network error uploading installer to R2.');
+    } finally {
+      setUploadingExe(false);
+    }
+  };
+
+  const startEditRelease = (rel: ReleaseEntry) => {
+    setEditingId(rel.id);
+    setVersion(rel.version);
+    setTitle(rel.title);
+    setDate(rel.date);
+    setDownloadUrl(rel.downloadUrl || '/api/download');
+    setR2Key(rel.r2Key ?? '');
+    setFileSize(rel.fileSize ?? '');
+    setVirusTotalUrl(rel.virusTotalUrl ?? '');
+    const html = rel.notes.trim().startsWith('<')
+      ? rel.notes
+      : `<ul>${rel.notes
+          .split(/\r?\n/)
+          .filter((l) => l.trim())
+          .map((l) => `<li>${l}</li>`)
+          .join('')}</ul>`;
+    setNotesHtml(html);
+    if (editorRef.current) editorRef.current.innerHTML = html;
+    setPostToDiscord(false);
+    setStatusMsg(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setVersion('v0.2.1');
+    setTitle('');
+    setDate(new Date().toISOString().slice(0, 10));
+    setDownloadUrl('/api/download');
+    setR2Key('');
+    setFileSize('');
+    setVirusTotalUrl('');
+    const def =
+      '<ul><li><strong>Added:</strong> </li><li><strong>Improved:</strong> </li><li><strong>Fixed:</strong> </li></ul>';
+    setNotesHtml(def);
+    if (editorRef.current) editorRef.current.innerHTML = def;
+    setPostToDiscord(true);
+    setUploadStatus(null);
   };
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setStatusMsg(null);
+    const currentNotes = editorRef.current ? editorRef.current.innerHTML : notesHtml;
     try {
       const res = await fetch('/api/admin/releases', {
-        method: 'POST',
+        method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: editingId ?? undefined,
           version,
           title,
           date,
           downloadUrl,
+          r2Key,
           fileSize,
-          sha256,
           virusTotalUrl,
-          notes,
+          notes: currentNotes,
           postToDiscord
         })
       });
@@ -115,16 +230,27 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
         error?: string;
         releases?: ReleaseEntry[];
         discordPosted?: boolean;
+        discordError?: string;
       };
       if (!res.ok) {
-        setStatusMsg(data.error ?? 'Failed to publish release.');
+        setStatusMsg({ ok: false, text: data.error ?? 'Failed to save release.' });
         return;
       }
       if (data.releases) setReleases(data.releases);
-      setTitle('');
-      setStatusMsg(
-        `Published ${version}${data.discordPosted ? ' & posted announcement to Discord!' : '!'}`
-      );
+      const action = editingId ? `Updated ${version}` : `Published ${version}`;
+      if (postToDiscord) {
+        if (data.discordPosted) {
+          setStatusMsg({ ok: true, text: `${action} & posted announcement to Discord!` });
+        } else {
+          setStatusMsg({
+            ok: false,
+            text: `${action}, but Discord failed: ${data.discordError ?? 'Unknown Discord error'}`
+          });
+        }
+      } else {
+        setStatusMsg({ ok: true, text: `${action}!` });
+      }
+      resetForm();
     } finally {
       setSaving(false);
     }
@@ -137,6 +263,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     if (res.ok) {
       const data = (await res.json()) as { releases?: ReleaseEntry[] };
       if (data.releases) setReleases(data.releases);
+      if (editingId === id) resetForm();
     }
   };
 
@@ -197,7 +324,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             Release &amp; Patch Notes Studio
           </h1>
           <p className="text-xs text-slate-400">
-            Publishing updates the live Download link, Patch Notes page, and posts to Discord.
+            Upload your installer to Cloudflare R2, edit rich patch notes, and post to Discord.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -221,6 +348,56 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
       </div>
 
       <form onSubmit={(e) => void handlePublish(e)} className="photon-panel space-y-4 p-5 text-xs">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span className="font-semibold uppercase tracking-wider text-sky-300">
+            {editingId ? `Editing Release: ${version}` : 'New Release'}
+          </span>
+          {editingId && (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="inline-flex items-center gap-1 text-slate-400 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel Edit
+            </button>
+          )}
+        </div>
+
+        {/* R2 Installer Upload Box */}
+        <div className="border border-dashed border-sky-500/40 bg-[#070B12]/80 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-sky-200">Upload Installer (.exe) to Cloudflare R2</div>
+              <div className="text-[11px] text-slate-400">
+                Automatically stores the installer in your <code className="text-sky-300">LENS_R2</code> bucket and fills in the direct download link &amp; file size.
+              </div>
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".exe,.msi,.zip"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleExeUpload(file);
+                }}
+              />
+              <button
+                type="button"
+                disabled={uploadingExe}
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 border border-sky-400/60 bg-sky-500/20 px-3 py-1.5 font-semibold text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {uploadingExe ? 'Uploading to R2...' : 'Choose Installer File'}
+              </button>
+            </div>
+          </div>
+          {uploadStatus && <div className="mt-2 text-[11px] text-emerald-300">{uploadStatus}</div>}
+        </div>
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <label className="space-y-1">
             <span className="text-[10px] uppercase tracking-wider text-slate-400">Version *</span>
@@ -246,17 +423,26 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           </label>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <label className="space-y-1 sm:col-span-2">
             <span className="text-[10px] uppercase tracking-wider text-slate-400">
-              Installer Download URL (R2 or GitHub Release) *
+              R2 Download Endpoint (Auto-Populated)
             </span>
             <input
-              type="url"
+              type="text"
               value={downloadUrl}
               onChange={(e) => setDownloadUrl(e.target.value)}
-              placeholder="https://github.com/Yoast79/New-Eden-Lens/releases/download/v0.2.1/New-Eden-Lens-Setup.exe"
-              required
+              placeholder="/api/download?file=..."
+              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 font-mono text-slate-100 outline-none focus:border-sky-400"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400">File Size</span>
+            <input
+              type="text"
+              value={fileSize}
+              onChange={(e) => setFileSize(e.target.value)}
+              placeholder="118.4 MB"
               className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
             />
           </label>
@@ -271,90 +457,117 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           </label>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <label className="space-y-1">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400">File Size</span>
-            <input
-              type="text"
-              value={fileSize}
-              onChange={(e) => setFileSize(e.target.value)}
-              placeholder="118 MB"
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400">SHA-256 Checksum</span>
-            <input
-              type="text"
-              value={sha256}
-              onChange={(e) => setSha256(e.target.value)}
-              placeholder="Optional SHA-256 hash"
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 font-mono text-slate-100 outline-none focus:border-sky-400"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400">VirusTotal URL</span>
-            <input
-              type="url"
-              value={virusTotalUrl}
-              onChange={(e) => setVirusTotalUrl(e.target.value)}
-              placeholder="https://www.virustotal.com/..."
-              className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
-            />
-          </label>
-        </div>
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400">VirusTotal Scan URL (Optional)</span>
+          <input
+            type="url"
+            value={virusTotalUrl}
+            onChange={(e) => setVirusTotalUrl(e.target.value)}
+            placeholder="https://www.virustotal.com/..."
+            className="w-full border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
+          />
+        </label>
 
-        {/* Rich Patch Notes Editor + Live Preview */}
+        {/* Rich Text WYSIWYG Editor */}
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400">Patch Notes *</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => insertPrefix('+ Added')}
-                className="inline-flex items-center gap-1 border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300"
-              >
-                <Plus className="h-2.5 w-2.5" /> Added
-              </button>
-              <button
-                type="button"
-                onClick={() => insertPrefix('* Improved')}
-                className="border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-300"
-              >
-                * Improved
-              </button>
-              <button
-                type="button"
-                onClick={() => insertPrefix('! Fixed')}
-                className="border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300"
-              >
-                ! Fixed
-              </button>
-            </div>
+          <span className="block text-[10px] uppercase tracking-wider text-slate-400">
+            Patch Notes (Rich Text Editor) *
+          </span>
+          <div className="flex flex-wrap items-center gap-1 border border-slate-700 bg-[#0D1520] p-1.5">
+            <button
+              type="button"
+              onClick={() => execFormat('bold')}
+              title="Bold"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <Bold className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => execFormat('italic')}
+              title="Italic"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <Italic className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => execFormat('underline')}
+              title="Underline"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <Underline className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => execFormat('strikeThrough')}
+              title="Strikethrough"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <Strikethrough className="h-3.5 w-3.5" />
+            </button>
+            <span className="mx-1 h-4 w-px bg-slate-700" />
+            <button
+              type="button"
+              onClick={() => execFormat('formatBlock', 'h3')}
+              title="Heading"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <Heading2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => execFormat('insertUnorderedList')}
+              title="Bullet List"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => execFormat('insertOrderedList')}
+              title="Numbered List"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <ListOrdered className="h-3.5 w-3.5" />
+            </button>
+            <span className="mx-1 h-4 w-px bg-slate-700" />
+            <button
+              type="button"
+              onClick={handleInsertLink}
+              title="Insert Link"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const sel = window.getSelection()?.toString();
+                if (sel) execFormat('insertHTML', `<code>${sel}</code>`);
+              }}
+              title="Inline Code"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <Code className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => execFormat('removeFormat')}
+              title="Clear Formatting"
+              className="border border-transparent p-1.5 text-slate-300 hover:border-sky-400/50 hover:text-sky-300"
+            >
+              <RemoveFormatting className="h-3.5 w-3.5" />
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <textarea
-              rows={8}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              required
-              className="w-full border border-slate-700 bg-[#070B12] p-3 font-mono text-xs text-slate-100 outline-none focus:border-sky-400"
-            />
-            <div className="border border-slate-800 bg-[#070B12]/70 p-3">
-              <div className="mb-2 text-[10px] uppercase tracking-wider text-slate-400">Live Preview</div>
-              <ul className="space-y-1.5 text-xs">
-                {notes
-                  .split(/\r?\n/)
-                  .filter((l) => l.trim())
-                  .map((line, i) => (
-                    <li key={i} className="text-slate-200">
-                      {line}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          </div>
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => setNotesHtml(e.currentTarget.innerHTML)}
+            className="min-h-[180px] border border-t-0 border-slate-700 bg-[#070B12] p-3 text-xs leading-relaxed text-slate-100 outline-none focus:border-sky-400 [&_code]:bg-slate-800 [&_code]:px-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-sky-300 [&_li]:ml-5 [&_ol]:list-decimal [&_ul]:list-disc [&_a]:text-sky-400 [&_a]:underline"
+          />
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3">
@@ -365,7 +578,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               onChange={(e) => setPostToDiscord(e.target.checked)}
               className="accent-sky-400"
             />
-            Automatically post embedded patch notes + download link to Discord
+            Post embedded patch notes + direct download link to Discord
           </label>
 
           <button
@@ -374,14 +587,24 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             className="inline-flex items-center gap-2 border border-sky-400/60 bg-sky-500/20 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
           >
             <Send className="h-3.5 w-3.5" />
-            {saving ? 'Publishing...' : 'Publish Release'}
+            {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Publish Release'}
           </button>
         </div>
 
         {statusMsg && (
-          <div className="flex items-center gap-2 border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-emerald-300">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {statusMsg}
+          <div
+            className={`flex items-center gap-2 border px-3 py-2 ${
+              statusMsg.ok
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                : 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+            }`}
+          >
+            {statusMsg.ok ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+            )}
+            <span>{statusMsg.text}</span>
           </div>
         )}
       </form>
@@ -397,20 +620,30 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               key={r.id}
               className="flex items-center justify-between gap-3 border border-slate-800 bg-[#070B12]/70 px-3 py-2 text-xs"
             >
-              <div>
+              <div className="min-w-0 flex-1 truncate">
                 <span className="font-bold text-sky-300">{r.version}</span>
                 <span className="mx-2 text-slate-500">•</span>
                 <span className="font-semibold text-slate-100">{r.title}</span>
                 <span className="ml-2 text-slate-400">({r.date})</span>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleDelete(r.id)}
-                className="text-slate-500 hover:text-rose-400"
-                title="Delete release"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => startEditRelease(r)}
+                  className="inline-flex items-center gap-1 border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-sky-300 hover:border-sky-400"
+                >
+                  <Edit3 className="h-3 w-3" />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(r.id)}
+                  className="border border-slate-700 bg-slate-900 p-1 text-slate-400 hover:border-rose-500/50 hover:text-rose-400"
+                  title="Delete release"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -418,4 +651,3 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
-

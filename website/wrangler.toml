@@ -2,12 +2,12 @@ name = "new-eden-lens"
 compatibility_date = "2025-02-01"
 pages_build_output_dir = "dist"
 
-# Bind your Cloudflare KV namespace in the Cloudflare Pages Dashboard -> Settings -> Functions -> KV namespace bindings
-# Variable name: LENS_KV
+# Bindings in Cloudflare Pages Dashboard -> Settings -> Functions:
+# 1. KV namespace binding: Variable name = LENS_KV
+# 2. R2 bucket binding:    Variable name = LENS_R2
 #
-# Required Cloudflare Pages Secrets (Settings -> Environment variables -> Secret):
+# Required Cloudflare Pages Secrets (Settings -> Environment variables -> Production & Preview):
 # - DISCORD_CONTACT_WEBHOOK_URL
 # - DISCORD_UPDATES_WEBHOOK_URL
 # - ADMIN_PASSWORD
 # - ADMIN_SESSION_SECRET
-
