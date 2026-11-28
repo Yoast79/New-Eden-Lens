@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { BookOpen, Bug, Lightbulb, MessageSquare, ShieldCheck, X } from 'lucide-react';
+import { BookOpen, Bug, Globe, Lightbulb, MessageSquare, ShieldCheck, X } from 'lucide-react';
 import { MODULE_REGISTRY } from '@/modules/registry';
 
-export const APP_VERSION = 'v0.2.0';
+export const APP_VERSION = 'v0.6.0';
 
 const MODULE_TUTORIALS: Record<string, string[]> = {
   'item-evaluator': [
@@ -100,7 +100,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   const [fbTitle, setFbTitle] = useState('');
   const [fbContact, setFbContact] = useState('');
   const [fbMessage, setFbMessage] = useState('');
-  const [fbIncludeMeta, setFbIncludeMeta] = useState(true);
+  const [fbIncludeLogs, setFbIncludeLogs] = useState(true);
   const [fbSending, setFbSending] = useState(false);
 
   const selectedMod = MODULE_REGISTRY.find((m) => m.id === selectedId);
@@ -122,7 +122,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         title: fbTitle,
         message: fbMessage,
         contact: fbContact || undefined,
-        appVersion: fbIncludeMeta ? APP_VERSION : undefined
+        includeLogs: feedbackKind === 'bug' ? fbIncludeLogs : false
       });
       if (res.ok) {
         setFeedbackNotice({
@@ -189,6 +189,14 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => void window.eveLens.app.openExternal('https://new-eden-lens.com')}
+              className="inline-flex items-center gap-1 border border-sky-400/50 bg-sky-500/15 px-2.5 py-1 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/25"
+            >
+              <Globe className="h-3 w-3" />
+              Website
+            </button>
             <button
               type="button"
               onClick={() =>
@@ -288,14 +296,20 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               className="w-full border border-eve-border bg-eve-panel p-2.5 text-xs text-eve-text outline-none focus:border-eve-accent"
             />
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="inline-flex items-center gap-1.5 text-[11px] text-eve-muted">
-                <input
-                  type="checkbox"
-                  checked={fbIncludeMeta}
-                  onChange={(e) => setFbIncludeMeta(e.target.checked)}
-                />
-                Include app version ({APP_VERSION}) &amp; OS (no pilot tokens or personal data sent)
-              </label>
+              {feedbackKind === 'bug' ? (
+                <label className="inline-flex items-center gap-1.5 text-[11px] text-eve-muted">
+                  <input
+                    type="checkbox"
+                    checked={fbIncludeLogs}
+                    onChange={(e) => setFbIncludeLogs(e.target.checked)}
+                  />
+                  Attach local error log (<code>new-eden-lens-errors.log</code>)
+                </label>
+              ) : (
+                <span className="text-[11px] text-eve-muted">
+                  Sent directly to the Feature Requests channel.
+                </span>
+              )}
               <button
                 type="submit"
                 disabled={fbSending}
@@ -395,7 +409,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                 Trademarks &amp; Ownership
               </div>
               <p>• All New Eden Lens assets belong to Fenris Creations and are trademarked.</p>
-              <p>• EVE Online and all associated logos, ships, items, and icons are trademarks of CCP hf.</p>
+              <p>• EVE Online and all associated logos, ships, items, and icons are trademarks of Fenris Creations.</p>
               <p>• App Version: <span className="num-mono text-eve-accent">{APP_VERSION}</span> (Major.Minor.Patch — minor increments for new modules/features, patch increments for fixes).</p>
             </div>
           </div>

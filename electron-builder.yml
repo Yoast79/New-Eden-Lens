@@ -2,17 +2,16 @@ appId: com.fenriscreations.newedenlens
 productName: New Eden Lens
 copyright: Copyright © 2026 Fenris Creations
 directories:
-  buildResources: build
+  buildResources: resources
   output: dist
 files:
   - out/**/*
   - package.json
+extraResources:
+  - from: resources
+    to: .
 win:
   target:
-    - nsis
-    - portable
-  icon: build/icon.svg
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
+    - dir
+  icon: resources/icon.ico
 

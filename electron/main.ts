@@ -28,6 +28,7 @@ import { MiningService } from './services/mining-service';
 import { IndustryService } from './services/industry-service';
 import { PlanetaryService } from './services/planetary-service';
 import { WormholeService } from './services/wormhole-service';
+import { errorLogger } from './services/error-logger';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -95,9 +96,11 @@ function parseSavedBounds(
 
 function loadAppIcon(): Electron.NativeImage {
   const candidates = [
+    path.join(process.resourcesPath ?? '', 'icon.png'),
+    path.join(process.resourcesPath ?? '', 'icon.ico'),
     path.join(app.getAppPath(), 'resources', 'icon.png'),
-    path.join(app.getAppPath(), 'public', 'icon.png'),
-    path.join(process.resourcesPath ?? '', 'icon.png')
+    path.join(app.getAppPath(), 'resources', 'icon.ico'),
+    path.join(app.getAppPath(), 'public', 'icon.png')
   ];
   for (const p of candidates) {
     if (p && fs.existsSync(p)) {
@@ -379,10 +382,12 @@ export function openPopoutWindow(appRepo: AppRepository): void {
 }
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.newedenlens.desktop');
+  electronApp.setAppUserModelId('com.fenriscreations.newedenlens');
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
+
+  errorLogger.init();
 
   const userDataDir = app.getPath('userData');
   registerEveImageProtocol(userDataDir);

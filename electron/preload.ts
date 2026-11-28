@@ -22,7 +22,9 @@ const bridgeApi: ElectronBridgeApi = {
     openPopout: () => ipcRenderer.invoke('app:openPopout'),
     closePopout: () => ipcRenderer.invoke('app:closePopout'),
     setPopoutOptions: (opts) => ipcRenderer.invoke('app:setPopoutOptions', opts),
-    submitFeedback: (input) => ipcRenderer.invoke('app:submitFeedback', input)
+    submitFeedback: (input) => ipcRenderer.invoke('app:submitFeedback', input),
+    logError: (source, message) => ipcRenderer.invoke('app:logError', source, message),
+    checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates')
   },
   auth: {
     listAccounts: () => ipcRenderer.invoke('auth:listAccounts'),

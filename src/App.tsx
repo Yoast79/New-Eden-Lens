@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogIn, ShieldAlert, X } from 'lucide-react';
+import { Download, Globe, LogIn, ShieldAlert, X } from 'lucide-react';
 import type { EsiStatusSnapshot, SdeStatusSnapshot } from '@shared/types/esi';
 import { AccountProvider, useAccounts } from './core/contexts/AccountContext';
 import { ClipboardProvider, useEveClipboard } from './core/contexts/ClipboardContext';
@@ -34,6 +34,51 @@ function LensWorkspace() {
   const [sdeStatus, setSdeStatus] = useState<SdeStatusSnapshot | null>(null);
   const [esiStatus, setEsiStatus] = useState<EsiStatusSnapshot | null>(null);
   const [bootReady, setBootReady] = useState(false);
+  const [updatePrompt, setUpdatePrompt] = useState<{
+    currentVersion: string;
+    version: string;
+    title: string;
+    date: string;
+    downloadUrl: string;
+    fileSize?: string;
+    notes: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const onErr = (ev: ErrorEvent) => {
+      void window.eveLens.app.logError('RENDERER_ERROR', ev.error?.stack ?? ev.message ?? 'Unknown error');
+    };
+    const onRej = (ev: PromiseRejectionEvent) => {
+      const msg = ev.reason instanceof Error ? ev.reason.stack ?? ev.reason.message : String(ev.reason);
+      void window.eveLens.app.logError('RENDERER_REJECTION', msg);
+    };
+    window.addEventListener('error', onErr);
+    window.addEventListener('unhandledrejection', onRej);
+    return () => {
+      window.removeEventListener('error', onErr);
+      window.removeEventListener('unhandledrejection', onRej);
+    };
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void window.eveLens.app
+        .checkForUpdates()
+        .then((res) => {
+          if (res.updateAvailable && res.latestRelease) {
+            const skipped = window.localStorage.getItem('nel:skipped-update-version');
+            if (skipped !== res.latestRelease.version) {
+              setUpdatePrompt({
+                currentVersion: res.currentVersion,
+                ...res.latestRelease
+              });
+            }
+          }
+        })
+        .catch(() => {});
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const refreshTelemetry = useCallback(async () => {
     const [sde, esi] = await Promise.all([
@@ -183,6 +228,86 @@ function LensWorkspace() {
           onClose={() => setSettingsOpen(false)}
           onOpenQuickSetup={() => setQuickSetupOpen(true)}
         />
+      )}
+      {updatePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="photon-panel w-full max-w-lg border border-eve-accent/60 bg-eve-panel shadow-2xl">
+            <div className="photon-header flex items-center justify-between px-4 py-2.5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-eve-accent">
+                <Download className="h-4 w-4" />
+                Update Available
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpdatePrompt(null)}
+                className="text-eve-muted hover:text-eve-text"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3 p-4 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-bold text-eve-text">{updatePrompt.title}</div>
+                <div className="num-mono border border-eve-success/50 bg-eve-success/10 px-2 py-0.5 text-[11px] font-semibold text-eve-success">
+                  v{updatePrompt.currentVersion} → {updatePrompt.version.startsWith('v') ? updatePrompt.version : `v${updatePrompt.version}`}
+                </div>
+              </div>
+              <div className="text-[11px] text-eve-muted">
+                Released {updatePrompt.date}
+                {updatePrompt.fileSize ? ` • ${updatePrompt.fileSize}` : ''}
+              </div>
+              {updatePrompt.notes && (
+                <div className="max-h-40 overflow-y-auto whitespace-pre-wrap border border-eve-border bg-eve-bg/60 p-2.5 text-[11px] text-eve-text">
+                  {updatePrompt.notes}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.localStorage.setItem('nel:skipped-update-version', updatePrompt.version);
+                      setUpdatePrompt(null);
+                    }}
+                    className="border border-eve-border bg-eve-bg px-2.5 py-1 text-[11px] text-eve-muted hover:text-eve-text"
+                  >
+                    Skip This Version
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUpdatePrompt(null)}
+                    className="border border-eve-border bg-eve-bg px-2.5 py-1 text-[11px] text-eve-muted hover:text-eve-text"
+                  >
+                    Later
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void window.eveLens.app.openExternal('https://new-eden-lens.com')}
+                    className="inline-flex items-center gap-1 border border-eve-border bg-eve-bg px-2.5 py-1 text-[11px] text-eve-text hover:border-eve-accent hover:text-eve-accent"
+                  >
+                    <Globe className="h-3 w-3" />
+                    Website
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void window.eveLens.app.openExternal(
+                        updatePrompt.downloadUrl || 'https://new-eden-lens.com'
+                      );
+                      setUpdatePrompt(null);
+                    }}
+                    className="inline-flex items-center gap-1 border border-eve-accent/70 bg-eve-accent-muted px-3 py-1 text-[11px] font-semibold text-eve-accent hover:bg-eve-accent/25"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download Installer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

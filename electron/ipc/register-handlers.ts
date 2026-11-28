@@ -1,4 +1,5 @@
-import { BrowserWindow, Notification, clipboard, dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, shell } from 'electron';
+import { errorLogger } from '../services/error-logger';
 import type { SdeImportProgress } from '@shared/types/esi';
 import type { AppSettings, EsiRequestOptions } from '@shared/types/ipc';
 import type { ModuleConfigRecord } from '@shared/types/module';
@@ -95,7 +96,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
         title: string;
         message: string;
         contact?: string;
-        appVersion?: string;
+        includeLogs?: boolean;
       }
     ): Promise<{ ok: boolean; error?: string }> => {
       const now = Date.now();
@@ -112,7 +113,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
       const title = clean(input.title, 120);
       const message = clean(input.message, 1800);
       const contact = clean(input.contact, 100);
-      const appVersion = clean(input.appVersion, 32);
+      const versionStr = `v${app.getVersion()} (${process.platform})`;
 
       if (!title || !message) {
         return { ok: false, error: 'Summary and details are required.' };
@@ -136,11 +137,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
                 color: input.kind === 'bug' ? 0xf43f5e : 0x38bdf8,
                 fields: [
                   { name: 'Pilot / Contact', value: contact || 'Anonymous', inline: true },
-                  {
-                    name: 'Client',
-                    value: appVersion ? `${appVersion} (${process.platform})` : process.platform,
-                    inline: true
-                  },
+                  { name: 'Client', value: versionStr, inline: true },
                   { name: 'Details', value: message, inline: false }
                 ],
                 footer: { text: 'New Eden Lens Desktop App' },
@@ -152,6 +149,35 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
         if (!res.ok) {
           return { ok: false, error: 'Delivery service returned an error. Please try again later.' };
         }
+
+        // Send local error log right under the bug report (inline if <= 1900 chars, else as .log file)
+        if (input.kind === 'bug' && input.includeLogs) {
+          const logText = errorLogger
+            .getFormattedLog()
+            .replace(/@(everyone|here)/gi, '@\u200b$1');
+          if (logText.length <= 1900) {
+            await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                content: `**Error Log for:** \`${title}\`\n\`\`\`log\n${logText}\n\`\`\``
+              })
+            }).catch(() => {});
+          } else {
+            const form = new FormData();
+            form.append(
+              'payload_json',
+              JSON.stringify({ content: `**Attached Error Log for:** \`${title}\`` })
+            );
+            form.append(
+              'files[0]',
+              new Blob([logText], { type: 'text/plain' }),
+              'new-eden-lens-errors.log'
+            );
+            await fetch(endpoint, { method: 'POST', body: form }).catch(() => {});
+          }
+        }
+
         lastFeedbackAt = now;
         return { ok: true };
       } catch {
@@ -159,6 +185,57 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
       }
     }
   );
+
+  ipcMain.handle('app:logError', (_e, source: string, message: string) => {
+    errorLogger.record(String(source || 'RENDERER').slice(0, 40), String(message || '').slice(0, 2000));
+  });
+
+  ipcMain.handle('app:checkForUpdates', async () => {
+    const currentVersion = app.getVersion();
+    const parseSemver = (v: string): [number, number, number] => {
+      const cleaned = v.replace(/^v/i, '').split('-')[0];
+      const parts = cleaned.split('.').map((n) => parseInt(n, 10) || 0);
+      return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
+    };
+    const isNewer = (latest: string, current: string): boolean => {
+      const [la, lb, lc] = parseSemver(latest);
+      const [ca, cb, cc] = parseSemver(current);
+      if (la !== ca) return la > ca;
+      if (lb !== cb) return lb > cb;
+      return lc > cc;
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch('https://new-eden-lens.com/api/releases', {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!res.ok) return { updateAvailable: false, currentVersion, latestRelease: null };
+      const data = (await res.json()) as {
+        releases?: Array<{
+          version: string;
+          title: string;
+          date: string;
+          downloadUrl: string;
+          fileSize?: string;
+          notes: string;
+        }>;
+      };
+      const latest = data.releases?.[0] ?? null;
+      if (!latest || !latest.version) {
+        return { updateAvailable: false, currentVersion, latestRelease: null };
+      }
+      return {
+        updateAvailable: isNewer(latest.version, currentVersion),
+        currentVersion,
+        latestRelease: latest
+      };
+    } catch {
+      return { updateAvailable: false, currentVersion, latestRelease: null };
+    }
+  });
   ipcMain.handle('app:openPopout', () => {
     deps.openPopoutWindow();
   });

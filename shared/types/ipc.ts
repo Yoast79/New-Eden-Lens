@@ -114,8 +114,21 @@ export interface ElectronBridgeApi {
       title: string;
       message: string;
       contact?: string;
-      appVersion?: string;
+      includeLogs?: boolean;
     }) => Promise<{ ok: boolean; error?: string }>;
+    logError: (source: string, message: string) => Promise<void>;
+    checkForUpdates: () => Promise<{
+      updateAvailable: boolean;
+      currentVersion: string;
+      latestRelease: {
+        version: string;
+        title: string;
+        date: string;
+        downloadUrl: string;
+        fileSize?: string;
+        notes: string;
+      } | null;
+    }>;
   };
   auth: {
     listAccounts: () => Promise<EveAccountRecord[]>;
