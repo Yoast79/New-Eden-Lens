@@ -11,11 +11,9 @@ import { skillPlannerModule } from './skill-planner';
 import { structureTimersModule } from './structure-timers';
 import { tacticalMapModule } from './tactical-map';
 import { wormholeMapperModule } from './wormhole-mapper';
-import {
-  industryCalculatorModule,
-  miningTrackerModule,
-  planetaryInteractionModule
-} from './wip-modules';
+import { miningTrackerModule } from './mining-tracker';
+import { industryCalculatorModule } from './industry-calculator';
+import { planetaryInteractionModule } from './planetary-interaction';
 
 export const MODULE_REGISTRY: readonly ModuleDefinition[] = Object.freeze([
   marketTrackerModule,

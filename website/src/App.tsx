@@ -184,7 +184,7 @@ export function App() {
 
   const [cName, setCName] = useState('');
   const [cContact, setCContact] = useState('');
-  const [cSubject, setCSubject] = useState('Feedback / Feature Request');
+  const [cSubject, setCSubject] = useState('General Feedback / Question');
   const [cMessage, setCMessage] = useState('');
   const [cWebsite, setCWebsite] = useState('');
   const [cBusy, setCBusy] = useState(false);
@@ -1007,10 +1007,9 @@ export function App() {
                 onChange={(e) => setCSubject(e.target.value)}
                 className="w-full rounded-lg border border-slate-700 bg-[#070B12] px-3 py-2 text-slate-100 outline-none focus:border-sky-400"
               >
-                <option value="Feedback / Feature Request">Feedback / Feature Request</option>
+                <option value="General Feedback / Question">General Feedback / Question</option>
                 <option value="Bug Report">Bug Report</option>
-                <option value="Partnership / Corp Setup">Partnership / Corp Setup</option>
-                <option value="General Question">General Question</option>
+                <option value="Feature Request">Feature Request</option>
               </select>
             </label>
             <label className="space-y-1 sm:col-span-2">

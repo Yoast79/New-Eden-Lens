@@ -824,3 +824,276 @@ export interface StationServiceInfoDto {
   typeName?: string;
 }
 
+export interface MiningLedgerEntryDto {
+  date: string;
+  solarSystemId: number;
+  solarSystemName: string;
+  typeId: number;
+  typeName: string;
+  quantity: number;
+  volumeM3: number;
+  rawUnitPrice: number;
+  compressedTypeId: number | null;
+  compressedTypeName: string | null;
+  compressedUnitPrice: number;
+  reprocessedUnitValue: number;
+  rawTotalIsk: number;
+  compressedTotalIsk: number;
+  reprocessedBaseTotalIsk: number;
+  portionSize: number;
+  materials: Array<{ materialTypeId: number; materialName: string; quantityPerPortion: number }>;
+}
+
+export interface MiningLedgerSummaryDto {
+  characterId: number;
+  hubRegionId: number;
+  entries: MiningLedgerEntryDto[];
+  syncedAt: number;
+}
+
+export interface BlueprintSearchItemDto {
+  blueprintTypeId: number;
+  blueprintName: string;
+  activityId: number;
+  time: number;
+  productTypeId: number;
+  productName: string;
+  productQuantity: number;
+}
+
+export interface IndustryImplantInfoDto {
+  typeId: number;
+  name: string;
+  slot: number;
+  activity: 'manufacturing' | 'me_research' | 'te_research' | 'copying';
+  bonusPct: number;
+  installed: boolean;
+}
+
+export interface IndustryMaterialNodeDto {
+  typeId: number;
+  typeName: string;
+  baseQuantity: number;
+  adjustedQuantity: number;
+  ownedQuantity: number;
+  buyQuantity: number;
+  unitPrice: number;
+  buyTotalPrice: number;
+  craftTotalPrice: number | null;
+  totalPrice: number;
+  craftTimeSeconds: number;
+  craftable: boolean;
+  minable: boolean;
+  decision: 'craft' | 'buy';
+  acquireMode: 'buy' | 'mine';
+  blueprintTypeId: number | null;
+  runsNeeded: number;
+  children: IndustryMaterialNodeDto[];
+}
+
+export interface IndustryCalculationRequest {
+  blueprintTypeId: number;
+  activityId: number;
+  runs: number;
+  meLevel: number;
+  teLevel: number;
+  structureMeBonusPct: number;
+  structureTeBonusPct: number;
+  rigMeBonusPct: number;
+  rigTeBonusPct: number;
+  facilityTaxPct: number;
+  solarSystemId: number | null;
+  inputRegionId: number;
+  outputRegionId: number;
+  characterId: number | null;
+  expandSubComponents: boolean;
+  optimizationMode?: 'cheapest' | 'fastest' | 'custom';
+  craftOverrides?: Record<number, 'craft' | 'buy'>;
+  mineOverrides?: Record<number, 'mine' | 'buy'>;
+  useOwnedMaterials?: boolean;
+  useAllCharactersAssets?: boolean;
+  mfgImplantBonusPct?: number | null; // null/undefined = auto-detect from pilot implants
+}
+
+export interface IndustryCalculationResultDto {
+  blueprintTypeId: number;
+  blueprintName: string;
+  activityId: number;
+  productTypeId: number;
+  productName: string;
+  totalOutputQuantity: number;
+  optimizationMode: 'cheapest' | 'fastest' | 'custom';
+  tree: IndustryMaterialNodeDto[];
+  flatMaterials: Array<{
+    typeId: number;
+    typeName: string;
+    requiredQuantity: number;
+    ownedQuantity: number;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    estMarketValue: number;
+    category: 'market' | 'mineral' | 'pi' | 'component';
+    minable: boolean;
+    acquireMode: 'buy' | 'mine';
+  }>;
+  craftingSteps: Array<{
+    blueprintTypeId: number;
+    blueprintName: string;
+    productName: string;
+    runs: number;
+    timeSeconds: number;
+    depth: number;
+  }>;
+  missingBlueprints: Array<{
+    blueprintTypeId: number;
+    blueprintName: string;
+    productName: string;
+    activityId: number;
+    unitPrice: number;
+    ownedByOtherChar: string | null;
+  }>;
+  materialCostIsk: number;
+  ownedSavingsIsk: number;
+  minedSavingsIsk: number;
+  systemCostIndex: number;
+  jobFeeIsk: number;
+  totalCostIsk: number;
+  outputUnitPrice: number;
+  outputTotalIsk: number;
+  profitIsk: number;
+  marginPct: number;
+  iskPerHour: number;
+  baseTimeSeconds: number;
+  effectiveTimeSeconds: number;
+  totalTreeTimeSeconds: number;
+  appliedMfgImplantBonusPct: number;
+  implants: IndustryImplantInfoDto[];
+  pilotSkillsSummary: {
+    industryLevel: number;
+    advIndustryLevel: number;
+    reactionsLevel: number;
+    maxMfgSlots: number;
+    maxReactionSlots: number;
+  };
+}
+
+export interface OwnedBlueprintDto {
+  characterId: number;
+  characterName: string;
+  itemId: number;
+  typeId: number;
+  typeName: string;
+  productName: string;
+  activityId: number;
+  locationId: number;
+  destinationId: number | null;
+  locationName: string;
+  locationFlag: string;
+  quantity: number;
+  runs: number;
+  isBpo: boolean;
+  meLevel: number;
+  teLevel: number;
+  hasRecipe: boolean;
+}
+
+export interface CharacterIndustryJobDto {
+  characterId: number;
+  characterName: string;
+  jobId: number;
+  activityId: number;
+  activityName: string;
+  blueprintTypeId: number;
+  blueprintName: string;
+  productTypeId: number;
+  productName: string;
+  runs: number;
+  status: string;
+  startDate: number;
+  endDate: number;
+  facilityId: number;
+  facilityName: string;
+  cost: number;
+}
+
+export interface PlanetaryExtractorDto {
+  pinId: number;
+  productTypeId: number | null;
+  productName: string;
+  qtyPerCycle: number;
+  cycleTimeSeconds: number;
+  unitsPerHour: number;
+  expiryTime: string | null;
+  expiryMs: number | null;
+  status: 'active' | 'expiring_soon' | 'expired' | 'idle';
+}
+
+export interface PlanetaryStorageDto {
+  pinId: number;
+  kind: 'launchpad' | 'storage' | 'command_center';
+  totalVolumeM3: number;
+  capacityM3: number;
+  fillPct: number;
+  contents: Array<{
+    typeId: number;
+    typeName: string;
+    amount: number;
+    volumeM3: number;
+    estValueIsk: number;
+  }>;
+}
+
+export interface PlanetaryColonyDto {
+  characterId: number;
+  characterName: string;
+  planetId: number;
+  planetName: string;
+  planetType: string;
+  solarSystemId: number;
+  solarSystemName: string;
+  upgradeLevel: number;
+  numPins: number;
+  lastUpdate: string;
+  extractors: PlanetaryExtractorDto[];
+  storages: PlanetaryStorageDto[];
+  factoryCount: number;
+  nextExpiryMs: number | null;
+  estStorageValueIsk: number;
+}
+
+export interface PlanetaryCommodityProfitDto {
+  typeId: number;
+  name: string;
+  tier: 'P1' | 'P2' | 'P3' | 'P4';
+  cycleTimeSeconds: number;
+  outputQty: number;
+  volumeM3: number;
+  inputs: Array<{
+    typeId: number;
+    name: string;
+    tier: 'P0' | 'P1' | 'P2' | 'P3';
+    quantity: number;
+    unitPrice: number;
+  }>;
+  outputUnitPrice: number;
+  outputCycleValueIsk: number;
+  inputCycleCostIsk: number;
+  customsTaxIsk: number;
+  profitPerCycleIsk: number;
+  profitPerDayIsk: number;
+  marginPct: number;
+  sourcePlanets: string[];
+}
+
+export interface PlanetaryOverviewDto {
+  colonies: PlanetaryColonyDto[];
+  commodities: PlanetaryCommodityProfitDto[];
+  planetMatrix: Array<{
+    planetType: string;
+    p0Resources: string[];
+    singlePlanetP2: string[];
+  }>;
+  syncedAt: number;
+}
+

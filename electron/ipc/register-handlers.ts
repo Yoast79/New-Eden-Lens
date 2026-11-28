@@ -22,6 +22,9 @@ import type { NavigationService } from '../services/navigation-service';
 import type { IntelTrackerService } from '../services/intel-tracker-service';
 import type { SkillPlannerService } from '../services/skill-planner-service';
 import type { StructureService } from '../services/structure-service';
+import type { MiningService } from '../services/mining-service';
+import type { IndustryService } from '../services/industry-service';
+import type { PlanetaryService } from '../services/planetary-service';
 import type { WormholeService } from '../services/wormhole-service';
 
 export interface IpcDependencies {
@@ -48,6 +51,9 @@ export interface IpcDependencies {
   structureService: StructureService;
   fleetService: FleetService;
   assetsService: AssetsService;
+  miningService: MiningService;
+  industryService: IndustryService;
+  planetaryService: PlanetaryService;
 }
 
 export function registerIpcHandlers(deps: IpcDependencies): void {
@@ -77,6 +83,82 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     }
     deps.appRepo.updateSettings({ fullScreen: enabled });
   });
+
+  // XOR-obfuscated endpoint payloads (never exposed to renderer or plaintext binary strings)
+  let lastFeedbackAt = 0;
+  ipcMain.handle(
+    'app:submitFeedback',
+    async (
+      _e,
+      input: {
+        kind: 'bug' | 'feature';
+        title: string;
+        message: string;
+        contact?: string;
+        appVersion?: string;
+      }
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const now = Date.now();
+      if (now - lastFeedbackAt < 15_000) {
+        return { ok: false, error: 'Please wait a few seconds before sending another report.' };
+      }
+
+      const clean = (val: string | undefined, max: number) =>
+        (val ?? '')
+          .replace(/@(everyone|here)/gi, '@\u200b$1')
+          .trim()
+          .slice(0, max);
+
+      const title = clean(input.title, 120);
+      const message = clean(input.message, 1800);
+      const contact = clean(input.contact, 100);
+      const appVersion = clean(input.appVersion, 32);
+
+      if (!title || !message) {
+        return { ok: false, error: 'Summary and details are required.' };
+      }
+
+      const mask = [0x4e, 0x65, 0x77, 0x45, 0x64, 0x65, 0x6e, 0x4c, 0x65, 0x6e, 0x73, 0x21];
+      const payload =
+        input.kind === 'bug'
+          ? [38, 17, 3, 53, 23, 95, 65, 99, 1, 7, 0, 66, 33, 23, 19, 107, 7, 10, 3, 99, 4, 30, 26, 14, 57, 0, 21, 45, 11, 10, 5, 63, 74, 95, 70, 22, 120, 85, 70, 125, 82, 93, 92, 125, 93, 90, 75, 23, 122, 85, 65, 117, 75, 50, 67, 61, 87, 24, 74, 64, 56, 87, 90, 11, 9, 51, 90, 24, 81, 1, 61, 98, 13, 29, 62, 8, 8, 2, 59, 11, 28, 40, 29, 85, 9, 50, 66, 54, 2, 63, 86, 37, 14, 30, 70, 69, 22, 35, 4, 61, 92, 1, 56, 120, 8, 26, 0, 79, 2, 92, 47, 35, 92, 31, 41, 61, 21, 11, 20, 12, 127]
+          : [38, 17, 3, 53, 23, 95, 65, 99, 1, 7, 0, 66, 33, 23, 19, 107, 7, 10, 3, 99, 4, 30, 26, 14, 57, 0, 21, 45, 11, 10, 5, 63, 74, 95, 70, 22, 120, 85, 70, 125, 92, 81, 87, 116, 93, 87, 68, 25, 125, 93, 69, 125, 75, 60, 86, 11, 9, 58, 34, 64, 43, 93, 26, 50, 38, 1, 57, 124, 10, 62, 58, 101, 45, 1, 34, 104, 40, 10, 42, 116, 49, 34, 22, 77, 31, 86, 5, 115, 55, 28, 93, 20, 84, 33, 62, 17, 22, 7, 69, 125, 13, 40, 31, 61, 49, 3, 32, 114, 45, 63, 36, 60, 51, 44, 1, 43, 21, 12, 20, 105, 61];
+      const endpoint = Buffer.from(payload.map((b, i) => b ^ mask[i % mask.length])).toString('utf8');
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [
+              {
+                title: `${input.kind === 'bug' ? '🐛 Bug Report' : '💡 Feature Request'}: ${title}`,
+                color: input.kind === 'bug' ? 0xf43f5e : 0x38bdf8,
+                fields: [
+                  { name: 'Pilot / Contact', value: contact || 'Anonymous', inline: true },
+                  {
+                    name: 'Client',
+                    value: appVersion ? `${appVersion} (${process.platform})` : process.platform,
+                    inline: true
+                  },
+                  { name: 'Details', value: message, inline: false }
+                ],
+                footer: { text: 'New Eden Lens Desktop App' },
+                timestamp: new Date().toISOString()
+              }
+            ]
+          })
+        });
+        if (!res.ok) {
+          return { ok: false, error: 'Delivery service returned an error. Please try again later.' };
+        }
+        lastFeedbackAt = now;
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Unable to reach feedback service. Check your connection.' };
+      }
+    }
+  );
   ipcMain.handle('app:openPopout', () => {
     deps.openPopoutWindow();
   });
@@ -423,6 +505,31 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
   );
   ipcMain.handle('skills:syncAttributesAndImplants', (_e, characterId: number) =>
     deps.skillPlannerService.syncCharacterAttributesAndImplants(characterId)
+  );
+  ipcMain.handle('mining:syncLedger', (_e, characterId: number, regionId: number) =>
+    deps.miningService.syncLedger(characterId, regionId)
+  );
+  ipcMain.handle('industry:searchBlueprints', (_e, query: string, limit?: number) =>
+    deps.industryService.searchBlueprints(query, limit)
+  );
+  ipcMain.handle(
+    'industry:calculate',
+    (_e, req: import('@shared/types/modules-data').IndustryCalculationRequest) =>
+      deps.industryService.calculate(req)
+  );
+  ipcMain.handle('industry:getSystemCostIndex', (_e, solarSystemId: number) =>
+    deps.industryService.getSystemCostIndex(solarSystemId)
+  );
+  ipcMain.handle('industry:listOwnedBlueprints', (_e, characterId: number | null) =>
+    deps.industryService.listOwnedBlueprints(characterId)
+  );
+  ipcMain.handle('industry:listCharacterJobs', (_e, characterId: number | null) =>
+    deps.industryService.listCharacterJobs(characterId)
+  );
+  ipcMain.handle(
+    'planetary:getOverview',
+    (_e, characterId: number | null, regionId: number, pocoTaxPct: number) =>
+      deps.planetaryService.getOverview(characterId, regionId, pocoTaxPct)
   );
   ipcMain.handle('skills:getSkillMonitor', (_e, characterId: number) =>
     deps.skillPlannerService.getSkillMonitor(characterId)

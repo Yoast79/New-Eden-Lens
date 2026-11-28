@@ -5,7 +5,8 @@ import type { ModuleConfigRecord } from '@shared/types/module';
 import type {
   KillWatchlistRow,
   KillmailRow,
-  IntelTrackerAlertEvent
+  IntelTrackerAlertEvent,
+  IndustryCalculationRequest
 } from '@shared/types/modules-data';
 
 const bridgeApi: ElectronBridgeApi = {
@@ -20,7 +21,8 @@ const bridgeApi: ElectronBridgeApi = {
     setFullScreen: (enabled: boolean) => ipcRenderer.invoke('app:setFullScreen', enabled),
     openPopout: () => ipcRenderer.invoke('app:openPopout'),
     closePopout: () => ipcRenderer.invoke('app:closePopout'),
-    setPopoutOptions: (opts) => ipcRenderer.invoke('app:setPopoutOptions', opts)
+    setPopoutOptions: (opts) => ipcRenderer.invoke('app:setPopoutOptions', opts),
+    submitFeedback: (input) => ipcRenderer.invoke('app:submitFeedback', input)
   },
   auth: {
     listAccounts: () => ipcRenderer.invoke('auth:listAccounts'),
@@ -217,6 +219,25 @@ const bridgeApi: ElectronBridgeApi = {
     syncAttributesAndImplants: (characterId: number) =>
       ipcRenderer.invoke('skills:syncAttributesAndImplants', characterId),
     getSkillMonitor: (characterId: number) => ipcRenderer.invoke('skills:getSkillMonitor', characterId)
+  },
+  mining: {
+    syncLedger: (characterId: number, regionId: number) =>
+      ipcRenderer.invoke('mining:syncLedger', characterId, regionId)
+  },
+  industry: {
+    searchBlueprints: (query: string, limit?: number) =>
+      ipcRenderer.invoke('industry:searchBlueprints', query, limit),
+    calculate: (req: IndustryCalculationRequest) => ipcRenderer.invoke('industry:calculate', req),
+    getSystemCostIndex: (solarSystemId: number) =>
+      ipcRenderer.invoke('industry:getSystemCostIndex', solarSystemId),
+    listOwnedBlueprints: (characterId: number | null) =>
+      ipcRenderer.invoke('industry:listOwnedBlueprints', characterId),
+    listCharacterJobs: (characterId: number | null) =>
+      ipcRenderer.invoke('industry:listCharacterJobs', characterId)
+  },
+  planetary: {
+    getOverview: (characterId: number | null, regionId: number, pocoTaxPct: number) =>
+      ipcRenderer.invoke('planetary:getOverview', characterId, regionId, pocoTaxPct)
   },
   nav: {
     listRegions: () => ipcRenderer.invoke('nav:listRegions'),

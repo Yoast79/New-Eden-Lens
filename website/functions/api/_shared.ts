@@ -35,6 +35,8 @@ export interface Env {
   LENS_KV?: KVNamespaceLike;
   LENS_R2?: R2BucketLike;
   DISCORD_CONTACT_WEBHOOK_URL?: string;
+  DISCORD_BUG_WEBHOOK_URL?: string;
+  DISCORD_FEATURE_WEBHOOK_URL?: string;
   DISCORD_UPDATES_WEBHOOK_URL?: string;
   ADMIN_PASSWORD?: string;
   ADMIN_SESSION_SECRET?: string;

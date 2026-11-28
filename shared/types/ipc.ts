@@ -51,7 +51,14 @@ import type {
   ContractDetailDto,
   SkillMonitorDto,
   FleetMemberLocationDto,
-  StationServiceInfoDto
+  StationServiceInfoDto,
+  MiningLedgerSummaryDto,
+  BlueprintSearchItemDto,
+  IndustryCalculationRequest,
+  IndustryCalculationResultDto,
+  OwnedBlueprintDto,
+  CharacterIndustryJobDto,
+  PlanetaryOverviewDto
 } from './modules-data';
 
 export type DateFormatOption = 'dd/mm/yyyy' | 'mm/dd/yyyy' | 'yyyy-mm-dd' | 'locale';
@@ -102,6 +109,13 @@ export interface ElectronBridgeApi {
     openPopout: () => Promise<void>;
     closePopout: () => Promise<void>;
     setPopoutOptions: (opts: { alwaysOnTop?: boolean; attachToEve?: boolean; opacity?: number }) => Promise<void>;
+    submitFeedback: (input: {
+      kind: 'bug' | 'feature';
+      title: string;
+      message: string;
+      contact?: string;
+      appVersion?: string;
+    }) => Promise<{ ok: boolean; error?: string }>;
   };
   auth: {
     listAccounts: () => Promise<EveAccountRecord[]>;
@@ -329,6 +343,29 @@ export interface ElectronBridgeApi {
       implants: ImplantDetailDto[];
     }>;
     getSkillMonitor: (characterId: number) => Promise<SkillMonitorDto>;
+  };
+  mining: {
+    syncLedger: (characterId: number, regionId: number) => Promise<MiningLedgerSummaryDto>;
+  };
+  industry: {
+    searchBlueprints: (query: string, limit?: number) => Promise<BlueprintSearchItemDto[]>;
+    calculate: (req: IndustryCalculationRequest) => Promise<IndustryCalculationResultDto>;
+    getSystemCostIndex: (solarSystemId: number) => Promise<{
+      manufacturing: number;
+      reaction: number;
+      copying: number;
+      researchMe: number;
+      researchTe: number;
+    }>;
+    listOwnedBlueprints: (characterId: number | null) => Promise<OwnedBlueprintDto[]>;
+    listCharacterJobs: (characterId: number | null) => Promise<CharacterIndustryJobDto[]>;
+  };
+  planetary: {
+    getOverview: (
+      characterId: number | null,
+      regionId: number,
+      pocoTaxPct: number
+    ) => Promise<PlanetaryOverviewDto>;
   };
   nav: {
     listRegions: () => Promise<Array<{ regionId: number; regionName: string }>>;

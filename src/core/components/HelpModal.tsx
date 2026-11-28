@@ -67,13 +67,18 @@ const MODULE_TUTORIALS: Record<string, string[]> = {
     'Work In Progress: Will track multi-character 5.5M+ SP thresholds, Skill Extractor timers, and Omega/PLEX break-even profit.'
   ],
   'planetary-interaction': [
-    'Work In Progress: Will monitor planetary extractors, storage capacity alerts, and P1–P4 production profitability.'
+    'Colonies & Timers: Sync active planetary colonies across one or all registered characters to monitor live extractor expiration countdowns, hourly extraction rates, Launchpad/Storage fill bars, and one-click Set Dest.',
+    'P1–P4 Profit Calculator: Compare live profit/day, customs office (POCO) import/export taxes, and margins across all P1–P4 schematics by trade hub, and click any commodity to inspect its full production chain.',
+    'Planet Guide: Reference all 8 EVE planet types, their raw P0 resources, and which P2 commodities can be produced on a single planet.'
   ],
   'mining-tracker': [
-    'Work In Progress: Will track ore, ice, gas, and moon mining yields with live hub ISK/hr and fleet split math.'
+    'Mining Ledger: Sync your character mining ledger via ESI (requires esi-industry.read_character_mining.v1) to view mined ores, compressed ore values, and reprocessed mineral values.',
+    'Yield & Fleet Split: Estimate real-time ISK/hour and m³/hour per barge or exhumer, compare raw vs compressed vs reprocessed yields, and calculate fleet payout splits.'
   ],
   'industry-calculator': [
-    'Work In Progress: Will expand SDE blueprint BOMs with ME/TE, structure bonuses, system cost indices, and job timers.'
+    'Crafting Calculator: Search any blueprint/product, configure ME/TE, Structure, Rig, Facility Tax, Market Hub, and Industry Implants (auto-detected from your pilot or simulated).',
+    'Route Optimizer: Switch between Cheapest, Fastest, or Custom per-item Craft/Buy and Mine/Buy switches (green highlights the active method), optionally deduct owned assets (Use Own Materials), and export Shopping (Multibuy), Gathering, Craft Queue, and Missing Blueprints.',
+    'Blueprint Browser & Active Jobs: Search owned BPOs/BPCs across all characters with Maxed (10/20) vs Can Improve indicators, Set Dest, Load in Calc, and live industry job countdown timers.'
   ],
   'lp-conversion': [
     'Pick a popular NPC corporation or type in Search LP Store (fuzzy matching only shows NPC corporations with active LP stores).',
@@ -90,9 +95,52 @@ const MODULE_TUTORIALS: Record<string, string[]> = {
 export function HelpModal({ onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<'walkthroughs' | 'disclaimers'>('walkthroughs');
   const [selectedId, setSelectedId] = useState(MODULE_REGISTRY[0]?.id ?? 'item-evaluator');
-  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  const [feedbackNotice, setFeedbackNotice] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [feedbackKind, setFeedbackKind] = useState<'bug' | 'feature' | null>(null);
+  const [fbTitle, setFbTitle] = useState('');
+  const [fbContact, setFbContact] = useState('');
+  const [fbMessage, setFbMessage] = useState('');
+  const [fbIncludeMeta, setFbIncludeMeta] = useState(true);
+  const [fbSending, setFbSending] = useState(false);
+
   const selectedMod = MODULE_REGISTRY.find((m) => m.id === selectedId);
   const steps = MODULE_TUTORIALS[selectedId] ?? [];
+
+  const handleOpenFeedback = (kind: 'bug' | 'feature') => {
+    setFeedbackKind((prev) => (prev === kind ? null : kind));
+    setFeedbackNotice(null);
+  };
+
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackKind || fbSending) return;
+    setFbSending(true);
+    setFeedbackNotice(null);
+    try {
+      const res = await window.eveLens.app.submitFeedback({
+        kind: feedbackKind,
+        title: fbTitle,
+        message: fbMessage,
+        contact: fbContact || undefined,
+        appVersion: fbIncludeMeta ? APP_VERSION : undefined
+      });
+      if (res.ok) {
+        setFeedbackNotice({
+          ok: true,
+          msg: `${feedbackKind === 'bug' ? 'Bug report' : 'Feature request'} sent! Thank you for helping improve New Eden Lens.`
+        });
+        setFbTitle('');
+        setFbMessage('');
+        setFeedbackKind(null);
+      } else {
+        setFeedbackNotice({ ok: false, msg: res.error ?? 'Failed to send feedback.' });
+      }
+    } catch {
+      setFeedbackNotice({ ok: false, msg: 'Failed to send feedback.' });
+    } finally {
+      setFbSending(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
@@ -153,24 +201,24 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             </button>
             <button
               type="button"
-              onClick={() =>
-                setFeedbackNotice(
-                  'Bug Reports portal coming soon — please share bug reports in our Discord server in the meantime!'
-                )
-              }
-              className="inline-flex items-center gap-1 border border-eve-border bg-eve-bg px-2.5 py-1 text-[11px] text-eve-muted hover:border-eve-danger/50 hover:text-eve-danger"
+              onClick={() => handleOpenFeedback('bug')}
+              className={`inline-flex items-center gap-1 border px-2.5 py-1 text-[11px] ${
+                feedbackKind === 'bug'
+                  ? 'border-eve-danger/70 bg-eve-danger/15 font-semibold text-eve-danger'
+                  : 'border-eve-border bg-eve-bg text-eve-muted hover:border-eve-danger/50 hover:text-eve-danger'
+              }`}
             >
               <Bug className="h-3 w-3" />
               Bug Reports
             </button>
             <button
               type="button"
-              onClick={() =>
-                setFeedbackNotice(
-                  'Feature Requests portal coming soon — share your ideas with us in the Discord server!'
-                )
-              }
-              className="inline-flex items-center gap-1 border border-eve-border bg-eve-bg px-2.5 py-1 text-[11px] text-eve-muted hover:border-eve-accent/50 hover:text-eve-accent"
+              onClick={() => handleOpenFeedback('feature')}
+              className={`inline-flex items-center gap-1 border px-2.5 py-1 text-[11px] ${
+                feedbackKind === 'feature'
+                  ? 'border-eve-accent/70 bg-eve-accent-muted font-semibold text-eve-accent'
+                  : 'border-eve-border bg-eve-bg text-eve-muted hover:border-eve-accent/50 hover:text-eve-accent'
+              }`}
             >
               <Lightbulb className="h-3 w-3" />
               Feature Requests
@@ -179,12 +227,84 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {feedbackNotice && (
-          <div className="flex items-center justify-between border-b border-eve-accent/40 bg-eve-accent-muted/40 px-4 py-1.5 text-[11px] text-eve-accent">
-            <span>{feedbackNotice}</span>
+          <div
+            className={`flex items-center justify-between border-b px-4 py-1.5 text-[11px] ${
+              feedbackNotice.ok
+                ? 'border-eve-success/40 bg-eve-success/10 text-eve-success'
+                : 'border-eve-danger/40 bg-eve-danger/10 text-eve-danger'
+            }`}
+          >
+            <span>{feedbackNotice.msg}</span>
             <button type="button" onClick={() => setFeedbackNotice(null)} className="underline">
               Dismiss
             </button>
           </div>
+        )}
+
+        {feedbackKind && (
+          <form
+            onSubmit={(e) => void handleSubmitFeedback(e)}
+            className="space-y-2.5 border-b border-eve-border bg-eve-bg/80 px-4 py-3 text-xs"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold uppercase tracking-wider text-eve-accent">
+                {feedbackKind === 'bug' ? 'Submit Bug Report' : 'Submit Feature Request'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFeedbackKind(null)}
+                className="text-[11px] text-eve-muted hover:text-eve-text"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input
+                type="text"
+                required
+                value={fbTitle}
+                onChange={(e) => setFbTitle(e.target.value)}
+                placeholder={feedbackKind === 'bug' ? 'Short summary of the bug *' : 'Feature title *'}
+                className="border border-eve-border bg-eve-panel px-2.5 py-1.5 text-xs text-eve-text outline-none focus:border-eve-accent"
+              />
+              <input
+                type="text"
+                value={fbContact}
+                onChange={(e) => setFbContact(e.target.value)}
+                placeholder="Pilot name or Discord handle (optional)"
+                className="border border-eve-border bg-eve-panel px-2.5 py-1.5 text-xs text-eve-text outline-none focus:border-eve-accent"
+              />
+            </div>
+            <textarea
+              rows={3}
+              required
+              value={fbMessage}
+              onChange={(e) => setFbMessage(e.target.value)}
+              placeholder={
+                feedbackKind === 'bug'
+                  ? 'Describe what happened and how to reproduce it... *'
+                  : 'Describe your idea and how it would help you... *'
+              }
+              className="w-full border border-eve-border bg-eve-panel p-2.5 text-xs text-eve-text outline-none focus:border-eve-accent"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="inline-flex items-center gap-1.5 text-[11px] text-eve-muted">
+                <input
+                  type="checkbox"
+                  checked={fbIncludeMeta}
+                  onChange={(e) => setFbIncludeMeta(e.target.checked)}
+                />
+                Include app version ({APP_VERSION}) &amp; OS (no pilot tokens or personal data sent)
+              </label>
+              <button
+                type="submit"
+                disabled={fbSending}
+                className="border border-eve-accent/60 bg-eve-accent-muted px-3 py-1 text-xs font-semibold text-eve-accent hover:bg-eve-accent/25 disabled:opacity-50"
+              >
+                {fbSending ? 'Sending...' : 'Send Report'}
+              </button>
+            </div>
+          </form>
         )}
 
         {activeTab === 'walkthroughs' ? (

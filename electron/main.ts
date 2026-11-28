@@ -24,6 +24,9 @@ import { BackgroundScheduler } from './services/scheduler';
 import { SdeImporter } from './services/sde-importer';
 import { SkillPlannerService } from './services/skill-planner-service';
 import { StructureService } from './services/structure-service';
+import { MiningService } from './services/mining-service';
+import { IndustryService } from './services/industry-service';
+import { PlanetaryService } from './services/planetary-service';
 import { WormholeService } from './services/wormhole-service';
 
 protocol.registerSchemesAsPrivileged([
@@ -404,6 +407,9 @@ app.whenReady().then(async () => {
   const structureService = new StructureService(database, esiClient);
   const fleetService = new FleetService(database);
   const assetsService = new AssetsService(database, characterRepo, esiClient);
+  const miningService = new MiningService(database, esiClient, marketService);
+  const industryService = new IndustryService(database, esiClient, marketService);
+  const planetaryService = new PlanetaryService(database, esiClient, marketService);
   intelTrackerService = new IntelTrackerService(database, appRepo);
   scheduler = new BackgroundScheduler(appRepo, characterRepo, esiClient);
 
@@ -430,7 +436,10 @@ app.whenReady().then(async () => {
     intelTrackerService,
     structureService,
     fleetService,
-    assetsService
+    assetsService,
+    miningService,
+    industryService,
+    planetaryService
   });
 
   createTray(appRepo);
